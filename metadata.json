@@ -1,0 +1,8 @@
+{
+  "name": "Remix Gesture Drawing Studio",
+  "description": "Professional gesture drawing reference app for artists with customizable timers, diverse reference sets, photo uploads, image controls, and practice statistics.\nI want to be able to slide through photos with touch not just pressing buttons ",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
