@@ -362,6 +362,17 @@ export const ActiveSessionView: React.FC<ActiveSessionViewProps> = ({
     return () => clearTimeout(interval);
   }, [secondsLeft, isPaused, isResting, restSecondsLeft, handleNextPose, soundEnabled, config.soundVolume]);
 
+  // Fullscreen event listener to keep state in sync
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
   // Keyboard Shortcuts Listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -394,7 +405,11 @@ export const ActiveSessionView: React.FC<ActiveSessionViewProps> = ({
           break;
         case 'KeyF':
           e.preventDefault();
-          setFilters((f) => ({ ...f, flipHorizontal: !f.flipHorizontal }));
+          if (e.shiftKey) {
+            toggleFullscreen();
+          } else {
+            setFilters((f) => ({ ...f, flipHorizontal: !f.flipHorizontal }));
+          }
           break;
         case 'KeyV':
           e.preventDefault();

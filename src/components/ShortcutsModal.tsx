@@ -16,6 +16,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
     { key: '→ or N', desc: 'Next reference pose' },
     { key: '← or P', desc: 'Previous reference pose' },
     { key: 'S', desc: 'Skip current pose' },
+    { key: 'Shift + F', desc: 'Toggle Full Screen mode' },
     { key: 'B', desc: 'Turn Black & White (Grayscale)' },
     { key: 'F', desc: 'Flip image Horizontally' },
     { key: 'V', desc: 'Flip image Vertically' },

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Palette, 
   Clock, 
@@ -8,7 +8,9 @@ import {
   Keyboard, 
   Moon, 
   Sun,
-  Layers
+  Layers,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { DarkModeTheme, UsageStats } from '../types';
 
@@ -33,6 +35,26 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenShortcuts,
   stats,
 }) => {
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  };
+
   if (currentView === 'active') {
     // In active session, the session component manages its own minimal overlay bar
     return null;
@@ -126,6 +148,21 @@ export const Header: React.FC<HeaderProps> = ({
             title="Keyboard Shortcuts"
           >
             <Keyboard className="w-4 h-4" />
+          </button>
+
+          {/* Full Screen Option Button */}
+          <button
+            id="btn-nav-fullscreen"
+            type="button"
+            onClick={toggleFullscreen}
+            className={`p-2 rounded-full border backdrop-blur-md transition-all ${
+              isFullscreen 
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm'
+                : 'bg-white/5 hover:bg-white/15 text-neutral-300 hover:text-white border border-white/10'
+            }`}
+            title={isFullscreen ? 'Exit Full Screen' : 'Enter Full Screen'}
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
 
           {/* Theme Palette Switcher Dropdown */}
