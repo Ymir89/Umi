@@ -1,6 +1,6 @@
 {
   "name": "Remix Gesture Drawing Studio",
-  "description": "Professional gesture drawing reference app for artists with customizable timers, full screen distraction-free studio mode, touch gesture swiping, diverse reference sets, photo uploads, image controls, and practice statistics.",
+  "description": "Professional gesture drawing reference app for artists with customizable timers, full screen distraction-free studio mode, touch gesture swiping, folder and photo uploads, select-all controls, practice statistics, and offline Android PWA installation.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

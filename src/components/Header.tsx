@@ -10,7 +10,9 @@ import {
   Sun,
   Layers,
   Maximize2,
-  Minimize2
+  Minimize2,
+  Smartphone,
+  Download
 } from 'lucide-react';
 import { DarkModeTheme, UsageStats } from '../types';
 
@@ -22,6 +24,7 @@ interface HeaderProps {
   onOpenUploadModal: () => void;
   onOpenStats: () => void;
   onOpenShortcuts: () => void;
+  onOpenInstallModal: () => void;
   stats: UsageStats;
 }
 
@@ -33,6 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenUploadModal,
   onOpenStats,
   onOpenShortcuts,
+  onOpenInstallModal,
   stats,
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -137,6 +141,18 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
             <span className="hidden sm:inline">Stats</span>
+          </button>
+
+          {/* Install on Android / Mobile PWA Button */}
+          <button
+            id="btn-nav-install"
+            type="button"
+            onClick={onOpenInstallModal}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 hover:text-emerald-200 border border-emerald-500/30 text-xs font-semibold backdrop-blur-md transition-all shadow-sm shadow-emerald-500/10"
+            title="Download & Install on Android Devices"
+          >
+            <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden md:inline">Install App</span>
           </button>
 
           {/* Shortcuts Button */}

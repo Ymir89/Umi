@@ -232,28 +232,54 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
               {/* Expansion Preview Drawer */}
               {activePreviewPack === pack.id && (
                 <div
-                  className="p-3 bg-black/60 backdrop-blur-xl border-t border-white/10 space-y-2 animate-fade-in"
+                  className="p-3.5 bg-black/70 backdrop-blur-xl border-t border-white/10 space-y-2.5 animate-fade-in"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="flex items-center justify-between text-[10px] text-neutral-400 font-semibold uppercase">
-                    <span>Pack Gallery ({pack.images.length})</span>
-                    <span>Click bookmark to favorite</span>
+                  <div className="flex items-center justify-between text-[11px] text-neutral-300 font-semibold border-b border-white/10 pb-2">
+                    <span className="flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                      Set Gallery ({pack.images.length} photos)
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Toggle bookmark for all images in pack
+                          const allFavorited = pack.images.every((img) => favoriteImageIds.includes(img.id));
+                          pack.images.forEach((img) => {
+                            const isFav = favoriteImageIds.includes(img.id);
+                            if (allFavorited && isFav) {
+                              onToggleBookmark(img.id);
+                            } else if (!allFavorited && !isFav) {
+                              onToggleBookmark(img.id);
+                            }
+                          });
+                        }}
+                        className="text-[10px] text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1"
+                      >
+                        <Bookmark className="w-3 h-3" />
+                        {pack.images.every((img) => favoriteImageIds.includes(img.id))
+                          ? 'Unfavorite All'
+                          : 'Favorite All Photos'}
+                      </button>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-4 gap-1.5 max-h-36 overflow-y-auto pr-1">
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5 max-h-40 overflow-y-auto pr-1 no-scrollbar">
                     {pack.images.map((img) => {
                       const isFav = favoriteImageIds.includes(img.id);
                       return (
                         <div
                           key={img.id}
-                          className="relative aspect-square rounded-lg overflow-hidden bg-neutral-900 border border-white/10 group/img"
+                          className="relative aspect-square rounded-lg overflow-hidden bg-neutral-900 border border-white/10 group/img shadow-sm"
                         >
                           <img src={img.url} alt={img.title} className="w-full h-full object-cover" loading="lazy" />
                           <button
                             type="button"
                             onClick={() => onToggleBookmark(img.id)}
-                            className={`absolute top-1 right-1 p-0.5 rounded backdrop-blur-md transition-all ${
-                              isFav ? 'bg-emerald-500 text-black' : 'bg-black/60 text-white opacity-0 group-hover/img:opacity-100'
+                            className={`absolute top-1 right-1 p-1 rounded-md backdrop-blur-md transition-all ${
+                              isFav ? 'bg-emerald-500 text-black shadow' : 'bg-black/70 text-white opacity-0 group-hover/img:opacity-100'
                             }`}
+                            title={isFav ? 'Remove favorite' : 'Add to favorites'}
                           >
                             <Bookmark className="w-3 h-3 fill-current" />
                           </button>
@@ -261,7 +287,8 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
                             <button
                               type="button"
                               onClick={() => onDeleteCustomImage(img.id)}
-                              className="absolute bottom-1 right-1 p-0.5 rounded bg-rose-900 text-rose-200 opacity-0 group-hover/img:opacity-100"
+                              className="absolute bottom-1 right-1 p-1 rounded-md bg-rose-900/90 text-rose-200 opacity-0 group-hover/img:opacity-100 hover:bg-rose-800 transition-opacity"
+                              title="Delete photo"
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>

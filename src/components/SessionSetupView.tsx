@@ -8,10 +8,13 @@ import {
   Shuffle, 
   Sparkles, 
   Layers, 
-  Settings2,
-  Calendar,
-  Flame,
-  Plus
+  Settings2, 
+  Calendar, 
+  Flame, 
+  Plus,
+  Smartphone,
+  Download,
+  FolderUp
 } from 'lucide-react';
 import { SessionConfig, TimerPreset, ReferencePack, ReferenceImage, UsageStats } from '../types';
 import { ReferenceManager } from './ReferenceManager';
@@ -26,6 +29,7 @@ interface SessionSetupViewProps {
   onStartSession: () => void;
   onOpenTimerModal: () => void;
   onOpenUploadModal: () => void;
+  onOpenInstallModal?: () => void;
   onDeleteCustomImage: (id: string) => void;
   onToggleBookmark: (imageId: string) => void;
   stats: UsageStats;
@@ -40,6 +44,7 @@ export const SessionSetupView: React.FC<SessionSetupViewProps> = ({
   onStartSession,
   onOpenTimerModal,
   onOpenUploadModal,
+  onOpenInstallModal,
   onDeleteCustomImage,
   onToggleBookmark,
   stats,
@@ -378,6 +383,38 @@ export const SessionSetupView: React.FC<SessionSetupViewProps> = ({
           favoriteImageIds={stats.favoriteImageIds || []}
         />
       </div>
+
+      {/* Android & Mobile App Installation Banner */}
+      {onOpenInstallModal && (
+        <div className="rounded-3xl bg-gradient-to-r from-emerald-500/10 via-slate-900/50 to-indigo-500/10 border border-emerald-500/25 p-5 sm:p-6 backdrop-blur-xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+          <div className="flex items-center gap-4 text-center sm:text-left">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center p-2.5 shrink-0 shadow-inner">
+              <Smartphone className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center justify-center sm:justify-start gap-2">
+                <span className="font-bold text-white text-sm sm:text-base">Download & Install on Android</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-[10px] font-bold text-emerald-300">
+                  Offline Ready
+                </span>
+              </div>
+              <p className="text-xs text-neutral-300 mt-0.5 max-w-xl">
+                Install as a full-screen standalone application on your Android phone or tablet. Works completely offline with local storage and touch swipe controls.
+              </p>
+            </div>
+          </div>
+
+          <button
+            id="btn-open-install-banner"
+            type="button"
+            onClick={onOpenInstallModal}
+            className="shrink-0 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs shadow-lg shadow-emerald-500/25 transition-all flex items-center gap-2"
+          >
+            <Download className="w-4 h-4 stroke-[2.5]" />
+            Install on Android
+          </button>
+        </div>
+      )}
     </div>
   );
 };

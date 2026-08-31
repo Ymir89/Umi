@@ -1,0 +1,27 @@
+{
+  "name": "Gesture Drawing Studio",
+  "short_name": "GestureStudio",
+  "description": "Professional gesture drawing reference app for artists with customizable timers, diverse reference sets, folder & photo uploads, image controls, and practice statistics.",
+  "start_url": "/",
+  "id": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0c",
+  "theme_color": "#0a0a0c",
+  "orientation": "any",
+  "scope": "/",
+  "categories": ["art", "education", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512 any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512 any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

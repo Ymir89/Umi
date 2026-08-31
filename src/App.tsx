@@ -23,6 +23,9 @@ import {
 import { 
   SessionSummaryModal 
 } from './components/SessionSummaryModal';
+import { 
+  InstallAppModal 
+} from './components/InstallAppModal';
 
 import { 
   DEFAULT_PACKS, 
@@ -81,6 +84,7 @@ export default function App() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
 
   // Load custom images from IndexedDB on startup
   useEffect(() => {
@@ -294,6 +298,7 @@ export default function App() {
         onOpenUploadModal={() => setIsUploadModalOpen(true)}
         onOpenStats={() => setCurrentView(currentView === 'stats' ? 'setup' : 'stats')}
         onOpenShortcuts={() => setIsShortcutsModalOpen(true)}
+        onOpenInstallModal={() => setIsInstallModalOpen(true)}
         stats={stats}
       />
 
@@ -309,6 +314,7 @@ export default function App() {
             onStartSession={handleStartSession}
             onOpenTimerModal={() => setIsTimerModalOpen(true)}
             onOpenUploadModal={() => setIsUploadModalOpen(true)}
+            onOpenInstallModal={() => setIsInstallModalOpen(true)}
             onDeleteCustomImage={handleDeleteCustomImage}
             onToggleBookmark={handleToggleBookmark}
             stats={stats}
@@ -367,6 +373,11 @@ export default function App() {
       <ShortcutsModal
         isOpen={isShortcutsModalOpen}
         onClose={() => setIsShortcutsModalOpen(false)}
+      />
+
+      <InstallAppModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
       />
 
       {isSummaryModalOpen && lastFinishedSession && (
