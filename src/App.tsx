@@ -28,14 +28,11 @@ import {
 } from './components/InstallAppModal';
 
 import { 
-  DEFAULT_PACKS, 
-  DEFAULT_REFERENCES, 
   DEFAULT_TIMER_PRESETS 
 } from './data/defaultReferences';
 import { 
   SessionConfig, 
   TimerPreset, 
-  ReferencePack, 
   ReferenceImage, 
   UsageStats, 
   DrawingSession, 
@@ -119,13 +116,8 @@ export default function App() {
     }
   }, [theme]);
 
-  // Combine default packs with custom uploads
-  const packs: ReferencePack[] = useMemo(() => {
-    return DEFAULT_PACKS;
-  }, []);
-
   const allAvailableImages: ReferenceImage[] = useMemo(() => {
-    return [...DEFAULT_REFERENCES, ...customImages];
+    return customImages;
   }, [customImages]);
 
   // Toggle image bookmark / favorite
@@ -188,13 +180,6 @@ export default function App() {
   // Custom Image Uploads
   const handleImagesUploaded = (newImages: ReferenceImage[]) => {
     setCustomImages((prev) => [...newImages, ...prev]);
-    // Auto select custom pack in session config
-    if (!sessionConfig.selectedPackIds.includes('pack-custom')) {
-      setSessionConfig((prev) => ({
-        ...prev,
-        selectedPackIds: [...prev.selectedPackIds, 'pack-custom'],
-      }));
-    }
   };
 
   const handleDeleteCustomImage = async (id: string) => {
@@ -202,31 +187,38 @@ export default function App() {
     setCustomImages((prev) => prev.filter((img) => img.id !== id));
   };
 
+  const handleDeleteMultipleImages = async (ids: string[]) => {
+    for (const id of ids) {
+      await deleteFromIndexedDB(id);
+    }
+    const idSet = new Set(ids);
+    setCustomImages((prev) => prev.filter((img) => !idSet.has(img.id)));
+  };
+
+  const handleDeleteFolder = async (folderName: string) => {
+    const toDelete = customImages.filter((img) => img.tags.includes(folderName));
+    for (const img of toDelete) {
+      await deleteFromIndexedDB(img.id);
+    }
+    const delIds = new Set(toDelete.map((img) => img.id));
+    setCustomImages((prev) => prev.filter((img) => !delIds.has(img.id)));
+  };
+
+  const handleClearAllCustomImages = async () => {
+    await clearAllCustomImages();
+    setCustomImages([]);
+  };
+
   // Start Gesture Drawing Session
   const handleStartSession = () => {
-    // Collect images from selected packs
-    let pool: ReferenceImage[] = [];
-
-    sessionConfig.selectedPackIds.forEach((packId) => {
-      if (packId === 'pack-custom') {
-        pool.push(...customImages);
-      } else {
-        const p = packs.find((pk) => pk.id === packId);
-        if (p) {
-          pool.push(...p.images);
-        }
-      }
-    });
-
-    if (pool.length === 0) {
-      pool = [...DEFAULT_REFERENCES];
+    if (customImages.length === 0) {
+      setIsUploadModalOpen(true);
+      return;
     }
 
-    // Deduplicate by ID
-    const uniquePool = Array.from(new Map(pool.map((img) => [img.id, img])).values());
+    let queue = [...customImages];
 
     // Shuffle if enabled
-    let queue = [...uniquePool];
     if (sessionConfig.shuffle) {
       for (let i = queue.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -238,7 +230,7 @@ export default function App() {
     const target = sessionConfig.totalPosesTarget;
     if (target > 0 && queue.length < target) {
       while (queue.length < target) {
-        queue = [...queue, ...uniquePool];
+        queue = [...queue, ...customImages];
       }
     }
 
@@ -309,13 +301,16 @@ export default function App() {
             config={sessionConfig}
             onConfigChange={setSessionConfig}
             timerPresets={timerPresets}
-            packs={packs}
             customImages={customImages}
             onStartSession={handleStartSession}
             onOpenTimerModal={() => setIsTimerModalOpen(true)}
             onOpenUploadModal={() => setIsUploadModalOpen(true)}
             onOpenInstallModal={() => setIsInstallModalOpen(true)}
             onDeleteCustomImage={handleDeleteCustomImage}
+            onDeleteMultipleImages={handleDeleteMultipleImages}
+            onDeleteFolder={handleDeleteFolder}
+            onClearAllCustomImages={handleClearAllCustomImages}
+            onImagesUploaded={handleImagesUploaded}
             onToggleBookmark={handleToggleBookmark}
             stats={stats}
           />

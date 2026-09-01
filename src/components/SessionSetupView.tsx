@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   Play, 
   Clock, 
@@ -6,17 +6,14 @@ import {
   Volume2, 
   VolumeX, 
   Shuffle, 
-  Sparkles, 
-  Layers, 
   Settings2, 
-  Calendar, 
   Flame, 
-  Plus,
-  Smartphone,
-  Download,
-  FolderUp
+  Smartphone, 
+  Download, 
+  FolderUp,
+  Sparkles
 } from 'lucide-react';
-import { SessionConfig, TimerPreset, ReferencePack, ReferenceImage, UsageStats } from '../types';
+import { SessionConfig, TimerPreset, ReferenceImage, UsageStats } from '../types';
 import { ReferenceManager } from './ReferenceManager';
 import { formatTime, formatTotalTimeDrawn } from '../utils/storage';
 
@@ -24,13 +21,16 @@ interface SessionSetupViewProps {
   config: SessionConfig;
   onConfigChange: (config: SessionConfig) => void;
   timerPresets: TimerPreset[];
-  packs: ReferencePack[];
   customImages: ReferenceImage[];
   onStartSession: () => void;
   onOpenTimerModal: () => void;
   onOpenUploadModal: () => void;
   onOpenInstallModal?: () => void;
   onDeleteCustomImage: (id: string) => void;
+  onDeleteMultipleImages?: (ids: string[]) => void;
+  onDeleteFolder?: (folderName: string) => void;
+  onClearAllCustomImages?: () => void;
+  onImagesUploaded?: (newImages: ReferenceImage[]) => void;
   onToggleBookmark: (imageId: string) => void;
   stats: UsageStats;
 }
@@ -39,13 +39,16 @@ export const SessionSetupView: React.FC<SessionSetupViewProps> = ({
   config,
   onConfigChange,
   timerPresets,
-  packs,
   customImages,
   onStartSession,
   onOpenTimerModal,
   onOpenUploadModal,
   onOpenInstallModal,
   onDeleteCustomImage,
+  onDeleteMultipleImages,
+  onDeleteFolder,
+  onClearAllCustomImages,
+  onImagesUploaded,
   onToggleBookmark,
   stats,
 }) => {
@@ -53,27 +56,6 @@ export const SessionSetupView: React.FC<SessionSetupViewProps> = ({
 
   const updateConfig = <K extends keyof SessionConfig>(key: K, val: SessionConfig[K]) => {
     onConfigChange({ ...config, [key]: val });
-  };
-
-  const handleTogglePack = (packId: string) => {
-    const isSelected = config.selectedPackIds.includes(packId);
-    let updated: string[];
-    if (isSelected) {
-      updated = config.selectedPackIds.filter((id) => id !== packId);
-      if (updated.length === 0) updated = [packs[0].id]; // Ensure at least one pack is active
-    } else {
-      updated = [...config.selectedPackIds, packId];
-    }
-    updateConfig('selectedPackIds', updated);
-  };
-
-  const handleSelectAllPacks = () => {
-    const allIds = [...packs.map((p) => p.id), ...(customImages.length > 0 ? ['pack-custom'] : [])];
-    updateConfig('selectedPackIds', allIds);
-  };
-
-  const handleDeselectAllPacks = () => {
-    updateConfig('selectedPackIds', [packs[0].id]);
   };
 
   // Calculate estimated session duration
@@ -91,7 +73,7 @@ export const SessionSetupView: React.FC<SessionSetupViewProps> = ({
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 animate-fade-in text-neutral-100">
-      {/* Hero Welcome / Studio Action Bar */}
+      {/* Hero Welcome / Quick Launch Bar */}
       <div className="relative rounded-3xl overflow-hidden backdrop-blur-xl bg-white/[0.04] border border-white/10 p-6 sm:p-8 shadow-2xl">
         <div className="absolute -top-24 -right-24 w-72 h-72 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -100,7 +82,7 @@ export const SessionSetupView: React.FC<SessionSetupViewProps> = ({
           <div className="space-y-2.5 max-w-2xl">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold text-[11px] uppercase tracking-wider">
-                Artist Reference Engine
+                Artist Gesture Studio
               </span>
               <div className="flex items-center gap-1 text-xs text-rose-400 font-semibold">
                 <Flame className="w-3.5 h-3.5 fill-current" />
@@ -111,7 +93,9 @@ export const SessionSetupView: React.FC<SessionSetupViewProps> = ({
               Ready for Gesture Practice?
             </h1>
             <p className="text-xs sm:text-sm text-neutral-300/90 leading-relaxed">
-              Warm up your eyes and hand with interval-timed figure poses, dynamic dancers, animals, and custom uploaded reference sets.
+              {customImages.length > 0
+                ? `Ready to draw with ${customImages.length} custom uploaded reference photo${customImages.length === 1 ? '' : 's'}. Choose your timer settings below and start practicing.`
+                : 'Upload reference images or entire folders from your computer to begin your interval gesture drawing practice.'}
             </p>
           </div>
 
@@ -121,10 +105,23 @@ export const SessionSetupView: React.FC<SessionSetupViewProps> = ({
               id="btn-start-session-hero"
               type="button"
               onClick={onStartSession}
-              className="px-8 py-4 rounded-2xl bg-white hover:bg-neutral-200 text-black font-extrabold text-sm sm:text-base shadow-xl shadow-white/10 hover:shadow-white/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 group"
+              className={`px-8 py-4 rounded-2xl font-extrabold text-sm sm:text-base shadow-xl transition-all flex items-center justify-center gap-3 group active:scale-[0.98] ${
+                customImages.length > 0
+                  ? 'bg-white hover:bg-neutral-200 text-black shadow-white/10 hover:shadow-white/20 hover:scale-[1.02]'
+                  : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/25'
+              }`}
             >
-              <Play className="w-5 h-5 fill-current group-hover:translate-x-0.5 transition-transform" />
-              <span>START DRAWING SESSION</span>
+              {customImages.length > 0 ? (
+                <>
+                  <Play className="w-5 h-5 fill-current group-hover:translate-x-0.5 transition-transform" />
+                  <span>START DRAWING SESSION</span>
+                </>
+              ) : (
+                <>
+                  <FolderUp className="w-5 h-5 stroke-[2.5]" />
+                  <span>UPLOAD REFERENCES TO START</span>
+                </>
+              )}
             </button>
             <div className="text-center text-[11px] text-neutral-400 flex items-center justify-center gap-2">
               <span>Duration: <b className="text-emerald-400 font-mono">{formatTotalTimeDrawn(estimatedTotalSeconds)}</b></span>
@@ -368,17 +365,16 @@ export const SessionSetupView: React.FC<SessionSetupViewProps> = ({
         </div>
       </div>
 
-      {/* Reference Library & Pack Selector */}
+      {/* Custom File & Folder Reference Library */}
       <div className="backdrop-blur-xl bg-white/[0.04] border border-white/10 rounded-3xl p-5 sm:p-6 shadow-xl">
         <ReferenceManager
-          packs={packs}
           customImages={customImages}
-          selectedPackIds={config.selectedPackIds}
-          onTogglePack={handleTogglePack}
-          onSelectAllPacks={handleSelectAllPacks}
-          onDeselectAllPacks={handleDeselectAllPacks}
           onOpenUploadModal={onOpenUploadModal}
           onDeleteCustomImage={onDeleteCustomImage}
+          onDeleteMultipleImages={onDeleteMultipleImages}
+          onDeleteFolder={onDeleteFolder}
+          onClearAllCustomImages={onClearAllCustomImages}
+          onImagesUploaded={onImagesUploaded}
           onToggleBookmark={onToggleBookmark}
           favoriteImageIds={stats.favoriteImageIds || []}
         />

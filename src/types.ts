@@ -17,18 +17,7 @@ export interface ReferenceImage {
   gender?: 'female' | 'male' | 'any';
   poseType?: 'standing' | 'seated' | 'dynamic' | 'reclining' | 'action';
   isCustom?: boolean;
-  packId?: string;
   dateAdded?: number;
-}
-
-export interface ReferencePack {
-  id: string;
-  name: string;
-  description: string;
-  category: ReferenceCategory;
-  coverUrl: string;
-  isDefault?: boolean;
-  images: ReferenceImage[];
 }
 
 export interface TimerStage {
@@ -69,8 +58,6 @@ export interface SessionConfig {
   timerPresetId: string;
   customDuration: number;
   isProgressive: boolean;
-  selectedPackIds: string[];
-  selectedCategories: ReferenceCategory[];
   totalPosesTarget: number; // 0 for infinite
   shuffle: boolean;
   autoFlipRandomly: boolean;

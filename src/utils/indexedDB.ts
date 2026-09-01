@@ -54,10 +54,31 @@ export async function getAllCustomImages(): Promise<ReferenceImage[]> {
   try {
     const db = await openDB();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
+      const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
       const req = store.getAll();
-      req.onsuccess = () => resolve(req.result || []);
+      req.onsuccess = () => {
+        const results: ReferenceImage[] = req.result || [];
+        // Only return legitimate custom user uploads
+        const userImages = results.filter(
+          (img) =>
+            img &&
+            !img.url?.includes('images.unsplash.com') &&
+            !img.id?.startsWith('ref-') &&
+            (img.isCustom === true || img.id?.startsWith('custom-'))
+        );
+        // Automatically prune any legacy stock records from old sessions
+        results.forEach((img) => {
+          if (
+            img.url?.includes('images.unsplash.com') ||
+            img.id?.startsWith('ref-') ||
+            (!img.isCustom && !img.id?.startsWith('custom-'))
+          ) {
+            store.delete(img.id);
+          }
+        });
+        resolve(userImages);
+      };
       req.onerror = () => reject(req.error);
     });
   } catch (err) {

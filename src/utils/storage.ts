@@ -13,8 +13,6 @@ export const DEFAULT_SESSION_CONFIG: SessionConfig = {
   timerPresetId: 'timer-60s',
   customDuration: 60,
   isProgressive: false,
-  selectedPackIds: ['pack-figures', 'pack-action'],
-  selectedCategories: ['figures', 'action'],
   totalPosesTarget: 10,
   shuffle: true,
   autoFlipRandomly: false,

@@ -37,7 +37,6 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
   onImagesUploaded,
 }) => {
   const [dragActive, setDragActive] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<ReferenceCategory>('custom');
   const [urlInput, setUrlInput] = useState('');
   const [pendingImages, setPendingImages] = useState<PendingItem[]>([]);
   const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([]);
@@ -252,7 +251,7 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
           });
         }
 
-        const tags = ['custom', selectedCategory, 'uploaded'];
+        const tags = ['custom'];
         if (item.folderName) {
           tags.push(item.folderName);
         }
@@ -261,7 +260,7 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
           id: item.id,
           url: finalUrl,
           title: item.title,
-          category: selectedCategory,
+          category: 'custom',
           tags,
           isCustom: true,
           dateAdded: Date.now(),
@@ -403,35 +402,6 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
             Add URL
           </button>
         </form>
-
-        {/* Category Selection for Uploaded Set */}
-        <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between flex-wrap gap-2 text-xs">
-          <span className="font-semibold text-neutral-300">Assign Category:</span>
-          <div className="flex flex-wrap gap-1.5">
-            {[
-              { id: 'custom', label: 'Custom' },
-              { id: 'figures', label: 'Figures' },
-              { id: 'action', label: 'Action & Dance' },
-              { id: 'hands_feet', label: 'Hands/Feet' },
-              { id: 'portraits', label: 'Portraits' },
-              { id: 'animals', label: 'Animals' },
-              { id: 'drapery', label: 'Drapery' },
-            ].map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setSelectedCategory(cat.id as ReferenceCategory)}
-                className={`px-2.5 py-1 rounded-lg transition-all ${
-                  selectedCategory === cat.id
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold'
-                    : 'bg-white/5 text-neutral-400 hover:text-neutral-200 border border-transparent'
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
-        </div>
 
         {/* Preview & Select All Option for Image Files */}
         {pendingImages.length > 0 && (
