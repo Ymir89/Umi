@@ -9,7 +9,7 @@ const IMAGE_EXTENSION_REGEX = /\.(jpe?g|png|webp|gif|svg|avif|bmp|tiff?|tif|jfif
 // Non-image file extensions that must always be skipped
 const NON_IMAGE_EXTENSION_REGEX = /\.(txt|pdf|docx?|xlsx?|pptx?|zip|rar|7z|tar|gz|bz2|iso|mp4|mov|avi|mkv|webm|wmv|m4v|flv|mp3|wav|ogg|flac|m4a|aac|wma|json|js|ts|tsx|jsx|html|htm|css|scss|sass|py|cpp|c|h|hpp|java|class|cs|php|rb|go|rs|swift|kt|exe|dll|dylib|so|dmg|bin|apk|ipa|env|log|md|yml|yaml|xml|csv|tsv|sql|db|sqlite|bak|ini|cfg|conf|sh|bat|cmd)$/i;
 
-export function isImageFile(file: { name: string; type?: string }): boolean {
+export function isImageFile(file: { name: string; type?: string; size?: number }): boolean {
   if (!file || !file.name) return false;
   const name = file.name.trim();
 
@@ -18,7 +18,8 @@ export function isImageFile(file: { name: string; type?: string }): boolean {
     name.startsWith('.') ||
     name.startsWith('__MACOSX') ||
     name.toLowerCase() === 'thumbs.db' ||
-    name.toLowerCase() === 'desktop.ini'
+    name.toLowerCase() === 'desktop.ini' ||
+    name.toLowerCase() === '.ds_store'
   ) {
     return false;
   }
@@ -38,13 +39,18 @@ export function isImageFile(file: { name: string; type?: string }): boolean {
     return true;
   }
 
-  // If MIME type is generic (e.g. application/octet-stream or empty) and not in non-image list
-  return true;
+  // If the file has no extension (likely a folder or unknown directory), return false
+  if (!name.includes('.')) {
+    return false;
+  }
+
+  return false;
 }
 
 /**
  * Optimizes/resizes large photo files to max 2400px (retina quality for drawing)
  * to avoid blowing up IndexedDB storage quota. Falls back cleanly to FileReader DataURL.
+ * Always resolves with a durable Data URL (base64 string), NEVER a temporary blob URL.
  */
 export async function optimizeFileToDataUrl(file: File, maxDimension = 2400): Promise<string> {
   // If it's SVG, read as text Data URL directly
@@ -53,25 +59,33 @@ export async function optimizeFileToDataUrl(file: File, maxDimension = 2400): Pr
   }
 
   return new Promise((resolve) => {
-    // If file is small (< 800KB), read directly
-    if (file.size < 800 * 1024) {
+    // If file is small (< 600KB), read directly as Data URL for maximum speed and fidelity
+    if (file.size < 600 * 1024) {
       readFileAsDataUrl(file)
         .then(resolve)
         .catch(() => {
-          try {
-            resolve(URL.createObjectURL(file));
-          } catch {
-            resolve('');
-          }
+          resolve('');
         });
       return;
     }
 
-    const objectUrl = URL.createObjectURL(file);
+    let objectUrl = '';
+    try {
+      objectUrl = URL.createObjectURL(file);
+    } catch {
+      readFileAsDataUrl(file).then(resolve).catch(() => resolve(''));
+      return;
+    }
+
     const img = new Image();
 
     img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
+      try {
+        URL.revokeObjectURL(objectUrl);
+      } catch {
+        // ignore
+      }
+
       try {
         let { width, height } = img;
         if (width > maxDimension || height > maxDimension) {
@@ -90,36 +104,32 @@ export async function optimizeFileToDataUrl(file: File, maxDimension = 2400): Pr
         const ctx = canvas.getContext('2d');
 
         if (!ctx) {
-          readFileAsDataUrl(file).then(resolve).catch(() => resolve(objectUrl));
+          readFileAsDataUrl(file).then(resolve).catch(() => resolve(''));
           return;
         }
 
-        // Draw image with smooth bicubic scaling
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Export as WebP or JPEG for compact, fast storage
         const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
         const quality = 0.90;
         const dataUrl = canvas.toDataURL(mimeType, quality);
         resolve(dataUrl);
       } catch (err) {
         console.warn('Canvas optimization fallback to FileReader:', err);
-        readFileAsDataUrl(file).then(resolve).catch(() => resolve(objectUrl));
+        readFileAsDataUrl(file).then(resolve).catch(() => resolve(''));
       }
     };
 
     img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      // Fallback to direct FileReader
-      readFileAsDataUrl(file).then(resolve).catch(() => {
-        try {
-          resolve(URL.createObjectURL(file));
-        } catch {
-          resolve('');
-        }
-      });
+      try {
+        URL.revokeObjectURL(objectUrl);
+      } catch {
+        // ignore
+      }
+      // Fallback to direct FileReader Data URL
+      readFileAsDataUrl(file).then(resolve).catch(() => resolve(''));
     };
 
     img.src = objectUrl;
@@ -148,6 +158,7 @@ export interface ExtractedImageFile {
   title: string;
   folderName?: string;
   relativePath?: string;
+  folderTags?: string[];
 }
 
 /**
@@ -155,7 +166,7 @@ export interface ExtractedImageFile {
  */
 export async function traverseFileSystemEntry(
   entry: any,
-  rootFolderName = ''
+  currentPath = ''
 ): Promise<ExtractedImageFile[]> {
   if (!entry) return [];
   const results: ExtractedImageFile[] = [];
@@ -174,7 +185,23 @@ export async function traverseFileSystemEntry(
           url = '';
         }
         const title = file.name.replace(/\.[^/.]+$/, '').trim();
-        const folderName = rootFolderName || undefined;
+        
+        // Extract all folder levels in the hierarchy
+        const folderTags: string[] = [];
+        let folderName: string | undefined = undefined;
+        
+        if (currentPath) {
+          const parts = currentPath.split('/').map(p => p.trim()).filter(Boolean);
+          if (parts.length > 0) {
+            folderName = parts[parts.length - 1]; // immediate folder name
+            parts.forEach(p => {
+              if (!folderTags.includes(p)) folderTags.push(p);
+            });
+            if (parts.length > 1 && !folderTags.includes(currentPath)) {
+              folderTags.push(currentPath);
+            }
+          }
+        }
 
         results.push({
           file,
@@ -182,17 +209,18 @@ export async function traverseFileSystemEntry(
           url,
           title,
           folderName,
-          relativePath: entry.fullPath || file.name,
+          folderTags,
+          relativePath: currentPath ? `${currentPath}/${file.name}` : file.name,
         });
       }
     } catch (e) {
       console.warn('Could not read file entry:', entry.name, e);
     }
   } else if (entry.isDirectory) {
-    const currentFolder = rootFolderName || entry.name;
+    const dirPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
     const dirReader = entry.createReader();
 
-    // Read all directory batches until empty
+    // Read all directory batches until empty (readEntries returns in batches of 100 max)
     const readAllEntries = async (): Promise<any[]> => {
       const allEntries: any[] = [];
       let batch: any[] = [];
@@ -216,7 +244,7 @@ export async function traverseFileSystemEntry(
     try {
       const entries = await readAllEntries();
       for (const subEntry of entries) {
-        const subFiles = await traverseFileSystemEntry(subEntry, currentFolder);
+        const subFiles = await traverseFileSystemEntry(subEntry, dirPath);
         results.push(...subFiles);
       }
     } catch (e) {
@@ -244,7 +272,7 @@ export async function extractFilesFromDataTransfer(
       if (item.kind === 'file') {
         const entry = (item as any).webkitGetAsEntry?.();
         if (entry) {
-          promises.push(traverseFileSystemEntry(entry));
+          promises.push(traverseFileSystemEntry(entry, ''));
         } else {
           const file = item.getAsFile();
           if (file && isImageFile(file)) {
@@ -255,6 +283,7 @@ export async function extractFilesFromDataTransfer(
                   id: `custom-img-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
                   url: URL.createObjectURL(file),
                   title: file.name.replace(/\.[^/.]+$/, '').trim(),
+                  folderTags: [],
                 },
               ])
             );
@@ -281,7 +310,7 @@ export async function extractFilesFromDataTransfer(
 }
 
 /**
- * Extract files from an HTML File input (with webkitdirectory or multiple)
+ * Extract files from an HTML File input (with webkitdirectory or multiple files)
  */
 export function extractFilesFromFileList(
   files: FileList | File[]
@@ -296,15 +325,25 @@ export function extractFilesFromFileList(
     const rawPath = (file as any).webkitRelativePath || (file as any).fullPath || '';
     const cleanPath = rawPath.replace(/\\/g, '/').replace(/^\/+/, '').trim();
     let folderName: string | undefined = undefined;
+    const folderTags: string[] = [];
     let title = file.name.replace(/\.[^/.]+$/, '').trim();
 
     if (cleanPath && cleanPath.includes('/')) {
-      const parts = cleanPath.split('/');
-      // Top-level directory name
-      folderName = parts[0].trim();
-      // If there are subdirectories, format clean title
-      if (parts.length > 2) {
-        title = `${parts.slice(1, -1).join(' / ')} - ${title}`;
+      const parts = cleanPath.split('/').map(p => p.trim()).filter(Boolean);
+      // All directories leading up to the file
+      const dirParts = parts.slice(0, -1);
+      if (dirParts.length > 0) {
+        // Immediate parent folder
+        folderName = dirParts[dirParts.length - 1];
+        // Add all folder levels as tags
+        dirParts.forEach(p => {
+          if (!folderTags.includes(p)) folderTags.push(p);
+        });
+        // If there are multiple folder levels (e.g. MyPoses/Standing), also add the combined folder hierarchy tag
+        if (dirParts.length > 1) {
+          const joined = dirParts.join(' / ');
+          if (!folderTags.includes(joined)) folderTags.push(joined);
+        }
       }
     }
 
@@ -321,6 +360,7 @@ export function extractFilesFromFileList(
       url,
       title: title || file.name || `Photo ${i + 1}`,
       folderName: folderName || undefined,
+      folderTags,
       relativePath: cleanPath || file.name,
     });
   }
@@ -338,7 +378,7 @@ export async function convertToDurableReferenceImages(
   const finalImages: ReferenceImage[] = [];
   let completed = 0;
 
-  // Process in small batches for smooth UI and memory safety
+  // Process in small batches for smooth UI responsiveness and memory safety
   const batchSize = 6;
   for (let i = 0; i < items.length; i += batchSize) {
     const batch = items.slice(i, i + batchSize);
@@ -347,15 +387,22 @@ export async function convertToDurableReferenceImages(
         let finalUrl = item.url;
         if (item.file) {
           try {
-            finalUrl = await optimizeFileToDataUrl(item.file);
+            const dataUrl = await optimizeFileToDataUrl(item.file);
+            if (dataUrl && dataUrl.length > 0) {
+              finalUrl = dataUrl;
+            }
           } catch (e) {
-            console.warn('Failed to optimize image file to Data URL, keeping object URL', e);
+            console.warn('Failed to optimize image file to Data URL, using fallback:', e);
           }
         }
 
-        const tags = ['custom'];
-        if (item.folderName) {
-          tags.push(item.folderName);
+        const tags: string[] = ['custom'];
+        if (item.folderTags && item.folderTags.length > 0) {
+          item.folderTags.forEach(t => {
+            if (!tags.includes(t)) tags.push(t);
+          });
+        } else if (item.folderName) {
+          if (!tags.includes(item.folderName)) tags.push(item.folderName);
         }
 
         return {

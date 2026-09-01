@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   UploadCloud, 
   FolderUp, 
@@ -132,7 +132,7 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
 
   const handleSelectOnlyFolder = (folderName: string) => {
     const folderImageIds = pendingImages
-      .filter((img) => img.folderName === folderName)
+      .filter((img) => (img.folderTags && img.folderTags.includes(folderName)) || img.folderName === folderName)
       .map((img) => img.id);
     setSelectedPendingIds(folderImageIds);
   };
@@ -184,9 +184,17 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
   const noneSelected = selectedPendingIds.length === 0;
 
   // Detected unique folders
-  const detectedFolders = Array.from(
-    new Set(pendingImages.map((img) => img.folderName).filter(Boolean) as string[])
-  );
+  const detectedFolders = useMemo(() => {
+    const set = new Set<string>();
+    pendingImages.forEach((img) => {
+      if (img.folderTags && img.folderTags.length > 0) {
+        img.folderTags.forEach((t) => set.add(t));
+      } else if (img.folderName) {
+        set.add(img.folderName);
+      }
+    });
+    return Array.from(set);
+  }, [pendingImages]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto animate-fade-in">
@@ -346,7 +354,7 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
               >
                 <Folder className="w-3 h-3 text-indigo-400" />
                 <span>{f}</span>
-                <span className="opacity-75 font-sans font-bold">({pendingImages.filter((p) => p.folderName === f).length})</span>
+                <span className="opacity-75 font-sans font-bold">({pendingImages.filter((p) => (p.folderTags && p.folderTags.includes(f)) || p.folderName === f).length})</span>
               </button>
             ))}
           </div>

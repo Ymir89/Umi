@@ -65,15 +65,17 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
   const folders = useMemo(() => {
     const folderMap = new Map<string, number>();
     customImages.forEach((img) => {
-      const folderTag = img.tags.find(
-        (t) => t !== 'custom' && t !== 'uploaded'
+      const folderTags = (img.tags || []).filter(
+        (t) => t && t !== 'custom' && t !== 'uploaded' && t !== 'favorite' && t !== 'bookmarked'
       );
-      if (folderTag) {
+      folderTags.forEach((folderTag) => {
         folderMap.set(folderTag, (folderMap.get(folderTag) || 0) + 1);
-      }
+      });
     });
 
-    return Array.from(folderMap.entries()).map(([name, count]) => ({ name, count }));
+    return Array.from(folderMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
   }, [customImages]);
 
   // Filter images by folder and search query
