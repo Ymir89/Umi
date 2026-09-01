@@ -214,3 +214,61 @@ export function recordCompletedSession(session: DrawingSession): UsageStats {
   saveUsageStats(updatedStats);
   return updatedStats;
 }
+
+// Delete an individual session log from history and update stats
+export function deleteSessionLog(sessionId: string): UsageStats {
+  const currentStats = loadUsageStats();
+  const sessionToDelete = currentStats.sessionHistory.find((s) => s.id === sessionId);
+
+  if (!sessionToDelete) {
+    return currentStats;
+  }
+
+  const dateStr = sessionToDelete.dateStr;
+  const updatedDailyLogs = { ...currentStats.dailyLogs };
+
+  if (dateStr && updatedDailyLogs[dateStr]) {
+    const dayLog = updatedDailyLogs[dateStr];
+    const newPoses = Math.max(0, dayLog.posesCompleted - (sessionToDelete.totalPosesCompleted || 0));
+    const newSeconds = Math.max(0, dayLog.secondsDrawn - (sessionToDelete.totalTimeSpentSeconds || 0));
+    const newCount = Math.max(0, dayLog.sessionCount - 1);
+
+    if (newCount === 0 && newPoses === 0) {
+      delete updatedDailyLogs[dateStr];
+    } else {
+      updatedDailyLogs[dateStr] = {
+        ...dayLog,
+        posesCompleted: newPoses,
+        secondsDrawn: newSeconds,
+        sessionCount: newCount,
+      };
+    }
+  }
+
+  const updatedHistory = currentStats.sessionHistory.filter((s) => s.id !== sessionId);
+
+  const updatedStats: UsageStats = {
+    ...currentStats,
+    totalSessions: Math.max(0, currentStats.totalSessions - 1),
+    totalPoses: Math.max(0, currentStats.totalPoses - (sessionToDelete.totalPosesCompleted || 0)),
+    totalSecondsDrawn: Math.max(0, currentStats.totalSecondsDrawn - (sessionToDelete.totalTimeSpentSeconds || 0)),
+    dailyLogs: updatedDailyLogs,
+    sessionHistory: updatedHistory,
+  };
+
+  saveUsageStats(updatedStats);
+  return updatedStats;
+}
+
+// Clear all session logs while keeping favorite bookmarked poses
+export function clearAllSessionLogs(): UsageStats {
+  const currentStats = loadUsageStats();
+  const updatedStats: UsageStats = {
+    ...INITIAL_USAGE_STATS,
+    favoriteImageIds: currentStats.favoriteImageIds || [],
+  };
+
+  saveUsageStats(updatedStats);
+  return updatedStats;
+}
+

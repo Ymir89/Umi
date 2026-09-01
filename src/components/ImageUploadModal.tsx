@@ -7,28 +7,25 @@ import {
   X, 
   Check, 
   Link as LinkIcon, 
-  Sparkles, 
   CheckSquare, 
   Square, 
   Folder,
-  Layers,
-  FileCheck2
+  AlertCircle,
+  CheckCheck
 } from 'lucide-react';
-import { ReferenceImage, ReferenceCategory } from '../types';
+import { ReferenceImage } from '../types';
 import { saveMultipleCustomImages } from '../utils/indexedDB';
+import { 
+  ExtractedImageFile, 
+  extractFilesFromDataTransfer, 
+  extractFilesFromFileList, 
+  convertToDurableReferenceImages
+} from '../utils/fileHelpers';
 
 interface ImageUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImagesUploaded: (newImages: ReferenceImage[]) => void;
-}
-
-interface PendingItem {
-  id: string;
-  url: string;
-  title: string;
-  folderName?: string;
-  file?: File;
 }
 
 export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
@@ -38,138 +35,55 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
 }) => {
   const [dragActive, setDragActive] = useState(false);
   const [urlInput, setUrlInput] = useState('');
-  const [pendingImages, setPendingImages] = useState<PendingItem[]>([]);
+  const [pendingImages, setPendingImages] = useState<ExtractedImageFile[]>([]);
   const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [detectedFolderCount, setDetectedFolderCount] = useState<number>(0);
+  const [processProgress, setProcessProgress] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  // Set webkitdirectory on folderInputRef dynamically
+  // Auto-select all newly added pending images by default
   useEffect(() => {
-    if (folderInputRef.current) {
-      folderInputRef.current.setAttribute('webkitdirectory', '');
-      folderInputRef.current.setAttribute('directory', '');
+    if (pendingImages.length > 0) {
+      setSelectedPendingIds(pendingImages.map((img) => img.id));
     }
-  }, [isOpen]);
-
-  // Keep selectedPendingIds in sync with newly added pending images
-  useEffect(() => {
-    setSelectedPendingIds(pendingImages.map((img) => img.id));
   }, [pendingImages.length]);
 
   if (!isOpen) return null;
 
-  const isImageFile = (file: File | { name: string; type?: string }) => {
-    if (file.type && file.type.startsWith('image/')) return true;
-    return /\.(jpg|jpeg|png|webp|gif|svg|avif|bmp|tiff)$/i.test(file.name);
+  const handleAddExtractedFiles = (extracted: ExtractedImageFile[]) => {
+    if (extracted.length === 0) {
+      setErrorMessage('No image files found in the selected folder/files. Supported: JPG, PNG, WEBP, GIF, AVIF, BMP, TIFF, HEIC, RAW, PSD, SVG, and all standard photo formats.');
+      return;
+    }
+    setErrorMessage(null);
+    setPendingImages((prev) => [...prev, ...extracted]);
   };
 
-  const processFileList = (files: FileList | File[]) => {
-    const newPending: PendingItem[] = [];
-    const folders = new Set<string>();
-
-    Array.from(files).forEach((file) => {
-      if (isImageFile(file)) {
-        const url = URL.createObjectURL(file);
-        const relativePath = (file as any).webkitRelativePath || '';
-        let folderName = '';
-        let title = file.name.replace(/\.[^/.]+$/, '');
-
-        if (relativePath && relativePath.includes('/')) {
-          const parts = relativePath.split('/');
-          folderName = parts[0];
-          folders.add(folderName);
-          // Include subfolder in title if distinct
-          if (parts.length > 2) {
-            title = `${parts.slice(0, parts.length - 1).join(' / ')} - ${title}`;
-          }
-        }
-
-        newPending.push({
-          id: `custom-img-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-          url,
-          title,
-          folderName: folderName || undefined,
-          file,
-        });
-      }
-    });
-
-    if (folders.size > 0) {
-      setDetectedFolderCount((prev) => prev + folders.size);
+  const handleSelectFolder = () => {
+    if (folderInputRef.current) {
+      folderInputRef.current.click();
     }
-
-    setPendingImages((prev) => [...prev, ...newPending]);
-  };
-
-  // Traverse dropped folders recursively
-  const traverseDirectoryEntry = async (entry: any): Promise<File[]> => {
-    const files: File[] = [];
-    if (entry.isFile) {
-      const file: File = await new Promise((resolve, reject) => {
-        entry.file(resolve, reject);
-      });
-      if (isImageFile(file)) {
-        files.push(file);
-      }
-    } else if (entry.isDirectory) {
-      const dirReader = entry.createReader();
-      const readAllEntries = async (): Promise<any[]> => {
-        const entries: any[] = [];
-        let batch: any[] = await new Promise((resolve, reject) => {
-          dirReader.readEntries(resolve, reject);
-        });
-        while (batch.length > 0) {
-          entries.push(...batch);
-          batch = await new Promise((resolve, reject) => {
-            dirReader.readEntries(resolve, reject);
-          });
-        }
-        return entries;
-      };
-
-      const subEntries = await readAllEntries();
-      for (const subEntry of subEntries) {
-        const subFiles = await traverseDirectoryEntry(subEntry);
-        files.push(...subFiles);
-      }
-    }
-    return files;
   };
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
+    setIsProcessing(true);
+    setProcessProgress('Scanning dropped files & folders...');
 
-    const items = e.dataTransfer.items;
-    if (items && items.length > 0 && (items[0] as any).webkitGetAsEntry) {
-      setIsProcessing(true);
-      const allFiles: File[] = [];
-      let folderFound = false;
-
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.kind === 'file') {
-          const entry = (item as any).webkitGetAsEntry();
-          if (entry) {
-            if (entry.isDirectory) {
-              folderFound = true;
-            }
-            const filesFromEntry = await traverseDirectoryEntry(entry);
-            allFiles.push(...filesFromEntry);
-          }
-        }
-      }
+    try {
+      const extracted = await extractFilesFromDataTransfer(e.dataTransfer);
+      handleAddExtractedFiles(extracted);
+    } catch (err) {
+      console.error('Error reading dropped files:', err);
+      setErrorMessage('Failed to read some dropped files.');
+    } finally {
       setIsProcessing(false);
-      if (folderFound) {
-        setDetectedFolderCount((prev) => prev + 1);
-      }
-      processFileList(allFiles);
-    } else if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      processFileList(e.dataTransfer.files);
+      setProcessProgress('');
     }
   };
 
@@ -188,16 +102,16 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
     if (!urlInput.trim()) return;
     const url = urlInput.trim();
     const newId = `custom-url-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    setPendingImages((prev) => [
-      ...prev,
-      {
-        id: newId,
-        url,
-        title: `Online Reference ${prev.length + 1}`,
-      },
-    ]);
+    const newPending: ExtractedImageFile = {
+      id: newId,
+      url,
+      title: `Online Reference ${pendingImages.length + 1}`,
+      file: undefined as any,
+    };
+    setPendingImages((prev) => [...prev, newPending]);
     setSelectedPendingIds((prev) => [...prev, newId]);
     setUrlInput('');
+    setErrorMessage(null);
   };
 
   const toggleSelectImage = (id: string) => {
@@ -208,12 +122,19 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
 
   const handleSelectAll = () => {
     if (selectedPendingIds.length === pendingImages.length) {
-      // Deselect all
+      // If all are selected, deselect all
       setSelectedPendingIds([]);
     } else {
       // Select all
       setSelectedPendingIds(pendingImages.map((img) => img.id));
     }
+  };
+
+  const handleSelectOnlyFolder = (folderName: string) => {
+    const folderImageIds = pendingImages
+      .filter((img) => img.folderName === folderName)
+      .map((img) => img.id);
+    setSelectedPendingIds(folderImageIds);
   };
 
   const removePending = (id: string) => {
@@ -226,46 +147,23 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
     setSelectedPendingIds([]);
   };
 
-  // Convert files to base64 DataURL or store in IndexedDB
+  // Convert files to base64 DataURL and store in IndexedDB
   const handleSaveToLibrary = async (saveOnlySelected = false) => {
-    const imagesToSave = saveOnlySelected
+    const itemsToSave = saveOnlySelected
       ? pendingImages.filter((img) => selectedPendingIds.includes(img.id))
       : pendingImages;
 
-    if (imagesToSave.length === 0) return;
+    if (itemsToSave.length === 0) return;
     setIsProcessing(true);
+    setProcessProgress(`Importing 0 of ${itemsToSave.length} references...`);
 
     try {
-      const finalImages: ReferenceImage[] = [];
-
-      for (const item of imagesToSave) {
-        let finalUrl = item.url;
-
-        // If it's a file, convert to base64 DataURL for durable offline persistence
-        if (item.file) {
-          finalUrl = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(item.file!);
-          });
+      const finalImages = await convertToDurableReferenceImages(
+        itemsToSave,
+        (current, total) => {
+          setProcessProgress(`Importing ${current} of ${total} references...`);
         }
-
-        const tags = ['custom'];
-        if (item.folderName) {
-          tags.push(item.folderName);
-        }
-
-        finalImages.push({
-          id: item.id,
-          url: finalUrl,
-          title: item.title,
-          category: 'custom',
-          tags,
-          isCustom: true,
-          dateAdded: Date.now(),
-        });
-      }
+      );
 
       await saveMultipleCustomImages(finalImages);
       onImagesUploaded(finalImages);
@@ -274,13 +172,21 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
       onClose();
     } catch (err) {
       console.error('Failed to save uploaded images', err);
+      setErrorMessage('Failed to save references into browser storage. Please try a smaller batch.');
     } finally {
       setIsProcessing(false);
+      setProcessProgress('');
     }
   };
 
   const allSelected = pendingImages.length > 0 && selectedPendingIds.length === pendingImages.length;
   const someSelected = selectedPendingIds.length > 0 && selectedPendingIds.length < pendingImages.length;
+  const noneSelected = selectedPendingIds.length === 0;
+
+  // Detected unique folders
+  const detectedFolders = Array.from(
+    new Set(pendingImages.map((img) => img.folderName).filter(Boolean) as string[])
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto animate-fade-in">
@@ -296,7 +202,7 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
                 Upload Reference Photos & Folders
               </h2>
               <p className="text-xs text-neutral-400">
-                Upload entire folders or individual photos from your device into local offline storage
+                Import whole folders or individual photos from your device into local offline storage
               </p>
             </div>
           </div>
@@ -315,7 +221,7 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
           onDrop={handleDrop}
-          className={`relative border-2 border-dashed rounded-2xl p-6 sm:p-8 text-center transition-all flex flex-col items-center justify-center ${
+          className={`relative border-2 border-dashed rounded-2xl p-6 sm:p-7 text-center transition-all flex flex-col items-center justify-center ${
             dragActive
               ? 'border-emerald-400 bg-emerald-500/10'
               : 'border-white/15 hover:border-white/30 bg-white/[0.02] hover:bg-white/[0.04]'
@@ -326,38 +232,53 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
             ref={fileInputRef}
             type="file"
             multiple
-            accept="image/*"
+            accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.svg,.avif,.bmp,.tiff,.tif,.jfif,.pjp,.pjpeg,.heic,.heif,.hif,.ico,.cur,.apng,.raw,.cr2,.cr3,.nef,.arw,.dng,.orf,.rw2,.pef,.raf,.srw,.dcr,.kdc,.mrw,.psd,.psb,.tga,.hdr,.exr,.*"
             onChange={(e) => {
-              if (e.target.files) processFileList(e.target.files);
+              if (e.target.files && e.target.files.length > 0) {
+                const extracted = extractFilesFromFileList(e.target.files);
+                handleAddExtractedFiles(extracted);
+                e.target.value = '';
+              }
             }}
             className="hidden"
           />
 
-          {/* Hidden Folder Input */}
+          {/* Hidden Folder Input with direct webkitdirectory attributes */}
           <input
             ref={folderInputRef}
             type="file"
             multiple
+            {...({ webkitdirectory: '', directory: '', mozdirectory: '' } as any)}
             onChange={(e) => {
-              if (e.target.files) processFileList(e.target.files);
+              try {
+                if (e.target.files && e.target.files.length > 0) {
+                  const extracted = extractFilesFromFileList(e.target.files);
+                  handleAddExtractedFiles(extracted);
+                }
+              } catch (err) {
+                console.error('Error reading files from folder:', err);
+                setErrorMessage('Failed to read files from the selected folder.');
+              } finally {
+                e.target.value = '';
+              }
             }}
             className="hidden"
           />
 
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-emerald-400 shadow-inner">
-              <UploadCloud className="w-6 h-6" />
+          <div className="flex items-center gap-3 mb-2.5">
+            <div className="w-11 h-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-emerald-400 shadow-inner">
+              <UploadCloud className="w-5 h-5" />
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-indigo-400 shadow-inner">
-              <FolderUp className="w-6 h-6" />
+            <div className="w-11 h-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-indigo-400 shadow-inner">
+              <FolderUp className="w-5 h-5" />
             </div>
           </div>
 
           <p className="text-sm font-semibold text-neutral-200 mb-1">
-            Drag & drop whole folders or image files here
+            Drag & drop whole folders or image files from your device
           </p>
-          <p className="text-xs text-neutral-400 mb-4 max-w-md">
-            Automatically scans nested subdirectories and imports JPG, PNG, WEBP, and GIF reference files safely into local browser storage.
+          <p className="text-xs text-neutral-400 mb-3.5 max-w-lg">
+            Supports any image format (JPG, PNG, WEBP, GIF, SVG, AVIF, BMP, TIFF, HEIC, RAW, PSD). Folders and subdirectories are automatically indexed with folder tags.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
@@ -365,7 +286,7 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
               id="btn-select-files"
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-neutral-100 text-xs font-semibold border border-white/15 backdrop-blur-md transition-all flex items-center gap-2"
+              className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-neutral-100 text-xs font-semibold border border-white/15 backdrop-blur-md transition-all flex items-center gap-2 active:scale-95"
             >
               <ImageIcon className="w-4 h-4 text-emerald-400" />
               Select Image Files
@@ -373,17 +294,25 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
             <button
               id="btn-select-folder"
               type="button"
-              onClick={() => folderInputRef.current?.click()}
-              className="px-4 py-2.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 text-xs font-semibold border border-indigo-500/40 backdrop-blur-md transition-all flex items-center gap-2"
+              onClick={handleSelectFolder}
+              className="px-4 py-2.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 text-xs font-semibold border border-indigo-500/40 backdrop-blur-md transition-all flex items-center gap-2 active:scale-95 shadow-md"
             >
               <FolderUp className="w-4 h-4 text-indigo-400" />
-              Upload Entire Folder
+              Add Folder from Device
             </button>
           </div>
         </div>
 
+        {/* Error message if any */}
+        {errorMessage && (
+          <div className="mt-3 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2 text-xs text-rose-300">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
         {/* Or Paste Direct Image URL */}
-        <form onSubmit={handleAddUrl} className="flex items-center gap-2 mt-4">
+        <form onSubmit={handleAddUrl} className="flex items-center gap-2 mt-3.5">
           <div className="relative flex-1">
             <LinkIcon className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
             <input
@@ -403,22 +332,43 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
           </button>
         </form>
 
-        {/* Preview & Select All Option for Image Files */}
+        {/* Detected Folder Summary Bar if folders exist */}
+        {detectedFolders.length > 0 && (
+          <div className="mt-3 flex items-center gap-2 flex-wrap text-xs text-neutral-300">
+            <span className="font-semibold text-neutral-400">Folders:</span>
+            {detectedFolders.map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => handleSelectOnlyFolder(f)}
+                className="px-2.5 py-1 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5 font-mono text-[11px] transition-colors"
+                title={`Click to select only photos in folder ${f}`}
+              >
+                <Folder className="w-3 h-3 text-indigo-400" />
+                <span>{f}</span>
+                <span className="opacity-75 font-sans font-bold">({pendingImages.filter((p) => p.folderName === f).length})</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Selection Bar & Select All Option for Image Files */}
         {pendingImages.length > 0 && (
-          <div className="mt-5 space-y-3 p-3.5 rounded-2xl bg-white/[0.02] border border-white/10">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-2.5 text-xs font-semibold">
+          <div className="mt-4 space-y-3 p-3.5 rounded-2xl bg-white/[0.03] border border-white/10">
+            {/* Top Selection Toolbar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-white/10 pb-3 text-xs font-semibold">
+              {/* Select All / Deselect All Controls */}
               <div className="flex items-center gap-3">
-                {/* Select All Checkbox Button */}
                 <button
                   id="btn-select-all-pending"
                   type="button"
                   onClick={handleSelectAll}
-                  className="flex items-center gap-2 text-emerald-400 hover:text-emerald-300 transition-colors font-bold"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 hover:text-emerald-200 transition-all font-bold active:scale-95 shadow-sm"
                 >
                   {allSelected ? (
                     <CheckSquare className="w-4 h-4 text-emerald-400 fill-emerald-400/20" />
                   ) : someSelected ? (
-                    <div className="w-4 h-4 rounded border border-emerald-400 bg-emerald-500/30 flex items-center justify-center text-[10px] font-mono leading-none">
+                    <div className="w-4 h-4 rounded border border-emerald-400 bg-emerald-500/40 flex items-center justify-center text-[10px] font-mono leading-none text-emerald-200">
                       -
                     </div>
                   ) : (
@@ -427,21 +377,34 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
                   <span>{allSelected ? 'Deselect All' : `Select All (${pendingImages.length})`}</span>
                 </button>
 
-                <span className="text-neutral-500">|</span>
-                <span className="text-neutral-300">
-                  {selectedPendingIds.length} of {pendingImages.length} selected
-                </span>
+                <div className="flex items-center gap-1.5 text-xs text-neutral-300">
+                  <span className="font-mono font-bold text-white bg-white/10 px-2 py-0.5 rounded-md">
+                    {selectedPendingIds.length}
+                  </span>
+                  <span className="text-neutral-400">of {pendingImages.length} selected</span>
+                </div>
               </div>
 
+              {/* Quick Bulk Action Buttons */}
               <div className="flex items-center gap-2">
+                {!allSelected && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPendingIds(pendingImages.map((img) => img.id))}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white text-[11px] font-medium transition-colors"
+                  >
+                    <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    Select All
+                  </button>
+                )}
                 {selectedPendingIds.length > 0 && (
                   <button
                     type="button"
                     onClick={removeSelectedPending}
-                    className="flex items-center gap-1 text-rose-400 hover:text-rose-300 text-[11px] transition-colors"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 text-[11px] font-medium transition-colors border border-rose-500/20"
                   >
-                    <Trash2 className="w-3 h-3" />
-                    Delete Selected ({selectedPendingIds.length})
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Remove Selected ({selectedPendingIds.length})
                   </button>
                 )}
                 <button
@@ -450,7 +413,7 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
                     setPendingImages([]);
                     setSelectedPendingIds([]);
                   }}
-                  className="text-neutral-400 hover:text-neutral-200 text-[11px] ml-2"
+                  className="text-neutral-400 hover:text-neutral-200 text-[11px] ml-1 px-1.5 py-1"
                 >
                   Clear all
                 </button>
@@ -458,7 +421,7 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
             </div>
 
             {/* Thumbnail Grid with Checkboxes */}
-            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-2.5 max-h-52 overflow-y-auto p-1 pr-2 no-scrollbar">
+            <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-2.5 max-h-56 overflow-y-auto p-1 pr-2 no-scrollbar">
               {pendingImages.map((img) => {
                 const isSelected = selectedPendingIds.includes(img.id);
                 return (
@@ -467,8 +430,8 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
                     onClick={() => toggleSelectImage(img.id)}
                     className={`relative group aspect-square rounded-xl overflow-hidden bg-neutral-900 border cursor-pointer transition-all ${
                       isSelected
-                        ? 'border-emerald-400/80 ring-2 ring-emerald-500/40'
-                        : 'border-white/10 opacity-70 hover:opacity-100'
+                        ? 'border-emerald-400/80 ring-2 ring-emerald-500/40 shadow-md'
+                        : 'border-white/10 opacity-60 hover:opacity-100 hover:border-white/30'
                     }`}
                   >
                     <img src={img.url} alt={img.title} className="w-full h-full object-cover" />
@@ -478,8 +441,8 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
                       <div
                         className={`w-5 h-5 rounded-md flex items-center justify-center transition-all ${
                           isSelected
-                            ? 'bg-emerald-500 text-black shadow-md'
-                            : 'bg-black/60 backdrop-blur-md border border-white/30 text-transparent'
+                            ? 'bg-emerald-500 text-black shadow-md font-bold'
+                            : 'bg-black/70 backdrop-blur-md border border-white/40 text-transparent'
                         }`}
                       >
                         <Check className="w-3 h-3 stroke-[3]" />
@@ -488,7 +451,7 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
 
                     {/* Folder tag if present */}
                     {img.folderName && (
-                      <div className="absolute bottom-1 left-1 right-1 px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-md border border-white/10 text-[9px] text-neutral-300 truncate">
+                      <div className="absolute bottom-1 left-1 right-1 px-1.5 py-0.5 rounded bg-black/85 backdrop-blur-md border border-white/10 text-[9px] text-neutral-300 truncate font-mono">
                         📁 {img.folderName}
                       </div>
                     )}
@@ -513,18 +476,28 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
         )}
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between gap-3 mt-6 pt-4 border-t border-white/10">
+        <div className="flex items-center justify-between gap-3 mt-5 pt-4 border-t border-white/10">
           <div className="text-xs text-neutral-400">
-            {pendingImages.length > 0 && (
-              <span>Ready: <strong>{selectedPendingIds.length}</strong> photos will be added to Studio</span>
+            {isProcessing ? (
+              <span className="text-emerald-400 font-semibold flex items-center gap-2">
+                <span className="w-3.5 h-3.5 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin inline-block" />
+                {processProgress || 'Processing files...'}
+              </span>
+            ) : pendingImages.length > 0 ? (
+              <span>
+                Ready: <strong className="text-white">{selectedPendingIds.length}</strong> of {pendingImages.length} photos selected to save
+              </span>
+            ) : (
+              <span>Select files or folder above to begin</span>
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-neutral-400 hover:text-white"
+              disabled={isProcessing}
+              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-neutral-400 hover:text-white disabled:opacity-50"
             >
               Cancel
             </button>
@@ -533,11 +506,13 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
               type="button"
               onClick={() => handleSaveToLibrary(selectedPendingIds.length > 0 && selectedPendingIds.length < pendingImages.length)}
               disabled={pendingImages.length === 0 || isProcessing || (selectedPendingIds.length === 0)}
-              className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs shadow-lg shadow-emerald-500/25 transition-all flex items-center gap-2 disabled:opacity-40"
+              className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs shadow-lg shadow-emerald-500/25 transition-all flex items-center gap-2 disabled:opacity-40 active:scale-95"
             >
               <Check className="w-4 h-4 stroke-[2.5]" />
               {isProcessing
-                ? 'Importing...'
+                ? 'Saving...'
+                : noneSelected
+                ? 'Select photos to save'
                 : `Save ${selectedPendingIds.length} Photos to Studio`}
             </button>
           </div>

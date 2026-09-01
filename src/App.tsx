@@ -48,7 +48,9 @@ import {
   recordCompletedSession, 
   loadTheme, 
   saveTheme, 
-  INITIAL_USAGE_STATS 
+  INITIAL_USAGE_STATS,
+  deleteSessionLog,
+  clearAllSessionLogs 
 } from './utils/storage';
 import { 
   getAllCustomImages, 
@@ -274,6 +276,18 @@ export default function App() {
     setStats(INITIAL_USAGE_STATS);
   };
 
+  // Delete individual session log
+  const handleDeleteSessionLog = (sessionId: string) => {
+    const updated = deleteSessionLog(sessionId);
+    setStats(updated);
+  };
+
+  // Clear all session logs
+  const handleClearAllSessionLogs = () => {
+    const updated = clearAllSessionLogs();
+    setStats(updated);
+  };
+
   return (
     <div className="min-h-screen flex flex-col font-sans bg-[#0a0a0c] text-neutral-100 relative overflow-x-hidden selection:bg-emerald-500/30 selection:text-emerald-200">
       {/* Frosted Glass Background Ambient Lighting Orbs */}
@@ -323,6 +337,8 @@ export default function App() {
             onStartSessionFromFavorites={handleStartSessionFromFavorites}
             onBackToStudio={() => setCurrentView('setup')}
             onClearStats={handleClearStats}
+            onDeleteSessionLog={handleDeleteSessionLog}
+            onClearAllSessionLogs={handleClearAllSessionLogs}
           />
         )}
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Flame, 
   Clock, 
@@ -10,9 +10,13 @@ import {
   TrendingUp, 
   Sparkles,
   ChevronRight,
-  Target
+  Target,
+  Trash2,
+  AlertTriangle,
+  X,
+  Check
 } from 'lucide-react';
-import { UsageStats, ReferenceImage } from '../types';
+import { UsageStats, ReferenceImage, DrawingSession } from '../types';
 import { formatTotalTimeDrawn, formatTime, getTodayDateStr } from '../utils/storage';
 
 interface StatsViewProps {
@@ -21,6 +25,8 @@ interface StatsViewProps {
   onStartSessionFromFavorites: () => void;
   onBackToStudio: () => void;
   onClearStats: () => void;
+  onDeleteSessionLog: (sessionId: string) => void;
+  onClearAllSessionLogs?: () => void;
 }
 
 export const StatsView: React.FC<StatsViewProps> = ({
@@ -29,7 +35,13 @@ export const StatsView: React.FC<StatsViewProps> = ({
   onStartSessionFromFavorites,
   onBackToStudio,
   onClearStats,
+  onDeleteSessionLog,
+  onClearAllSessionLogs,
 }) => {
+  const [sessionToDelete, setSessionToDelete] = useState<DrawingSession | null>(null);
+  const [isConfirmingClearAll, setIsConfirmingClearAll] = useState(false);
+  const [isConfirmingResetAllStats, setIsConfirmingResetAllStats] = useState(false);
+
   const favoriteImages = allImages.filter((img) => stats.favoriteImageIds?.includes(img.id));
   const today = getTodayDateStr();
 
@@ -94,6 +106,22 @@ export const StatsView: React.FC<StatsViewProps> = ({
     },
   ];
 
+  const handleConfirmDeleteSingle = () => {
+    if (sessionToDelete) {
+      onDeleteSessionLog(sessionToDelete.id);
+      setSessionToDelete(null);
+    }
+  };
+
+  const handleConfirmClearAllLogs = () => {
+    if (onClearAllSessionLogs) {
+      onClearAllSessionLogs();
+    } else {
+      stats.sessionHistory.forEach((s) => onDeleteSessionLog(s.id));
+    }
+    setIsConfirmingClearAll(false);
+  };
+
   return (
     <div className="w-full max-w-5xl mx-auto px-4 py-8 space-y-8 animate-fade-in text-neutral-100">
       {/* Header */}
@@ -135,7 +163,7 @@ export const StatsView: React.FC<StatsViewProps> = ({
             {formatTotalTimeDrawn(stats.totalSecondsDrawn)}
           </div>
           <div className="text-[11px] text-neutral-400 mt-1">
-            Across {stats.totalSessions} sessions
+            Across {stats.totalSessions} {stats.totalSessions === 1 ? 'session' : 'sessions'}
           </div>
         </div>
 
@@ -305,55 +333,237 @@ export const StatsView: React.FC<StatsViewProps> = ({
         </div>
       </div>
 
-      {/* Session History Log Table */}
-      {stats.sessionHistory.length > 0 && (
-        <div className="backdrop-blur-xl bg-white/[0.04] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
-          <div className="flex items-center justify-between">
+      {/* Session History Log Section */}
+      <div className="backdrop-blur-xl bg-white/[0.04] border border-white/10 rounded-3xl p-6 shadow-2xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-emerald-400" />
             <h3 className="font-bold text-sm sm:text-base text-white">Recent Session Logs</h3>
-            <span className="text-xs text-neutral-400 font-mono">Last {stats.sessionHistory.length} sessions</span>
+            <span className="text-xs text-neutral-400 font-mono">
+              ({stats.sessionHistory.length} {stats.sessionHistory.length === 1 ? 'record' : 'records'})
+            </span>
           </div>
 
-          <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+          {stats.sessionHistory.length > 0 && (
+            <button
+              id="btn-clear-all-session-logs"
+              type="button"
+              onClick={() => setIsConfirmingClearAll(true)}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-rose-500/20 font-semibold transition-all self-start sm:self-auto"
+              title="Delete all session history logs"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Clear All Logs</span>
+            </button>
+          )}
+        </div>
+
+        {stats.sessionHistory.length === 0 ? (
+          <div className="text-center py-8 text-neutral-400 text-xs bg-white/[0.02] rounded-2xl border border-dashed border-white/10">
+            No drawing sessions recorded yet. Complete a gesture drawing session in the Studio to view your history and logs here.
+          </div>
+        ) : (
+          <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1 no-scrollbar">
             {stats.sessionHistory.map((sess) => (
               <div
                 key={sess.id}
-                className="flex items-center justify-between p-3 rounded-xl backdrop-blur-md bg-white/[0.03] border border-white/10 text-xs hover:border-white/20 transition-all"
+                className="group flex items-center justify-between p-3.5 rounded-2xl backdrop-blur-md bg-white/[0.03] border border-white/10 text-xs hover:border-white/20 hover:bg-white/[0.05] transition-all"
               >
-                <div>
-                  <div className="font-bold text-neutral-200">{sess.presetName}</div>
-                  <div className="text-[11px] text-neutral-400">{sess.dateStr}</div>
-                </div>
-                <div className="flex items-center gap-4 text-right font-mono">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-neutral-300">
+                    <Target className="w-4 h-4 text-indigo-400" />
+                  </div>
                   <div>
-                    <div className="text-indigo-300 font-bold">{sess.totalPosesCompleted} poses</div>
+                    <div className="font-bold text-neutral-200 text-xs sm:text-sm">{sess.presetName || 'Custom Session'}</div>
+                    <div className="text-[11px] text-neutral-400 flex items-center gap-2 mt-0.5">
+                      <span>📅 {sess.dateStr}</span>
+                      <span>•</span>
+                      <span>{sess.poses?.length || sess.totalPosesCompleted} poses tracked</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 sm:gap-5 font-mono">
+                  <div className="text-right">
+                    <div className="text-indigo-300 font-bold text-xs sm:text-sm">{sess.totalPosesCompleted} poses</div>
                     <div className="text-[10px] text-neutral-400">drawn</div>
                   </div>
-                  <div>
-                    <div className="text-emerald-300 font-bold">{formatTotalTimeDrawn(sess.totalTimeSpentSeconds)}</div>
+                  <div className="text-right">
+                    <div className="text-emerald-300 font-bold text-xs sm:text-sm">{formatTotalTimeDrawn(sess.totalTimeSpentSeconds)}</div>
                     <div className="text-[10px] text-neutral-400">duration</div>
                   </div>
+
+                  {/* Delete Session Log Button */}
+                  <button
+                    id={`btn-delete-session-${sess.id}`}
+                    type="button"
+                    onClick={() => setSessionToDelete(sess)}
+                    className="p-2 rounded-xl text-neutral-500 hover:text-rose-400 hover:bg-rose-500/15 border border-transparent hover:border-rose-500/30 transition-all opacity-80 group-hover:opacity-100"
+                    title="Delete this session log"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Data Management Footer */}
       <div className="flex items-center justify-between pt-4 border-t border-white/10 text-xs text-neutral-500">
         <span>Stored securely in your local browser sandbox</span>
         <button
+          id="btn-reset-all-stats"
           type="button"
-          onClick={() => {
-            if (window.confirm('Are you sure you want to reset all usage statistics? This cannot be undone.')) {
-              onClearStats();
-            }
-          }}
+          onClick={() => setIsConfirmingResetAllStats(true)}
           className="text-neutral-400 hover:text-rose-400 transition-colors"
         >
-          Reset Statistics
+          Reset All Statistics
         </button>
       </div>
+
+      {/* Confirmation Modal: Delete Single Session Log */}
+      {sessionToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="bg-neutral-900 border border-rose-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-400">
+              <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Delete Session Log?</h3>
+                <p className="text-xs text-neutral-400">This action will remove this entry from history.</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-neutral-400">Session Preset:</span>
+                <span className="text-white font-semibold">{sessionToDelete.presetName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-400">Date Recorded:</span>
+                <span className="text-white font-semibold">{sessionToDelete.dateStr}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-400">Poses Completed:</span>
+                <span className="text-indigo-300 font-mono font-bold">{sessionToDelete.totalPosesCompleted} poses</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-400">Time Spent:</span>
+                <span className="text-emerald-300 font-mono font-bold">{formatTotalTimeDrawn(sessionToDelete.totalTimeSpentSeconds)}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-neutral-300 leading-relaxed">
+              Are you sure you want to permanently delete this practice record? Its pose count and duration will be deducted from your total analytics.
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setSessionToDelete(null)}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 text-xs font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                id="btn-confirm-delete-session"
+                type="button"
+                onClick={handleConfirmDeleteSingle}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/25 transition-all flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Yes, Delete Log
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal: Clear All Session Logs */}
+      {isConfirmingClearAll && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="bg-neutral-900 border border-rose-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-400">
+              <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Delete All Session Logs?</h3>
+                <p className="text-xs text-neutral-400">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-neutral-300 leading-relaxed">
+              Are you sure you want to delete all <b className="text-white font-semibold">{stats.sessionHistory.length}</b> session logs from your history? Your bookmarked favorites will remain saved.
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsConfirmingClearAll(false)}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 text-xs font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                id="btn-confirm-clear-all-sessions"
+                type="button"
+                onClick={handleConfirmClearAllLogs}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/25 transition-all flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Yes, Clear All Logs
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal: Reset All Statistics */}
+      {isConfirmingResetAllStats && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="bg-neutral-900 border border-rose-500/40 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-400">
+              <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Reset All Statistics?</h3>
+                <p className="text-xs text-neutral-400">Reset total mileage, streaks, and logs.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-neutral-300 leading-relaxed">
+              Are you sure you want to completely reset all statistics, streak days, heatmaps, and session history back to zero?
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsConfirmingResetAllStats(false)}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 text-xs font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                id="btn-confirm-reset-stats"
+                type="button"
+                onClick={() => {
+                  onClearStats();
+                  setIsConfirmingResetAllStats(false);
+                }}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/25 transition-all flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Yes, Reset All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

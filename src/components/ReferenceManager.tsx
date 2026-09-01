@@ -3,8 +3,6 @@ import {
   UploadCloud, 
   Bookmark, 
   Trash2, 
-  Eye, 
-  Plus, 
   Folder, 
   FolderUp, 
   Image as ImageIcon, 
@@ -17,6 +15,11 @@ import {
 } from 'lucide-react';
 import { ReferenceImage, ReferenceCategory } from '../types';
 import { saveMultipleCustomImages } from '../utils/indexedDB';
+import { 
+  extractFilesFromDataTransfer, 
+  extractFilesFromFileList, 
+  convertToDurableReferenceImages
+} from '../utils/fileHelpers';
 
 interface ReferenceManagerProps {
   customImages: ReferenceImage[];
@@ -53,16 +56,10 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
   // Drag & drop state for inline dropzone
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessingInline, setIsProcessingInline] = useState(false);
+  const [progressStatus, setProgressStatus] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
-
-  React.useEffect(() => {
-    if (folderInputRef.current) {
-      folderInputRef.current.setAttribute('webkitdirectory', '');
-      folderInputRef.current.setAttribute('directory', '');
-    }
-  }, []);
 
   // Compute folders list from custom images
   const folders = useMemo(() => {
@@ -100,75 +97,31 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
     });
   }, [customImages, selectedFolderFilter, searchQuery]);
 
-  // Helper to process uploaded files
-  const handleFiles = async (files: FileList | File[]) => {
-    if (!onImagesUploaded) return;
+  // Helper to process extracted files from files input or drop
+  const processAndSaveExtracted = async (extractedItems: ReturnType<typeof extractFilesFromFileList>) => {
+    if (!onImagesUploaded || extractedItems.length === 0) return;
     setIsProcessingInline(true);
+    setProgressStatus(`Importing ${extractedItems.length} photos...`);
 
     try {
-      const newItems: { file: File; id: string; url: string; title: string; folderName?: string }[] = [];
-      const imageFiles = Array.from(files).filter(
-        (f) => f.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif|svg|avif|bmp|tiff)$/i.test(f.name)
+      const durableImages = await convertToDurableReferenceImages(
+        extractedItems,
+        (curr, tot) => setProgressStatus(`Importing ${curr} of ${tot} photos...`)
       );
 
-      for (const file of imageFiles) {
-        const url = URL.createObjectURL(file);
-        const relativePath = (file as any).webkitRelativePath || '';
-        let folderName = '';
-        let title = file.name.replace(/\.[^/.]+$/, '');
-
-        if (relativePath && relativePath.includes('/')) {
-          const parts = relativePath.split('/');
-          folderName = parts[0];
-          if (parts.length > 2) {
-            title = `${parts.slice(0, parts.length - 1).join(' / ')} - ${title}`;
-          }
-        }
-
-        newItems.push({
-          file,
-          id: `custom-img-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-          url,
-          title,
-          folderName: folderName || undefined,
-        });
-      }
-
-      // Convert to blob/base64 & save in IndexedDB
-      const dbRecords = await Promise.all(
-        newItems.map(async (item) => {
-          let storageUrl = item.url;
-          try {
-            const buffer = await item.file.arrayBuffer();
-            const blob = new Blob([buffer], { type: item.file.type || 'image/jpeg' });
-            storageUrl = URL.createObjectURL(blob);
-          } catch (e) {
-            console.warn('Blob conversion fallback', e);
-          }
-
-          const tags = ['custom', 'uploaded'];
-          if (item.folderName) {
-            tags.push(item.folderName);
-          }
-
-          return {
-            id: item.id,
-            url: storageUrl,
-            title: item.title,
-            category: 'custom' as ReferenceCategory,
-            tags,
-            isCustom: true,
-            dateAdded: Date.now(),
-          };
-        })
-      );
-
-      await saveMultipleCustomImages(dbRecords);
-      onImagesUploaded(dbRecords);
+      await saveMultipleCustomImages(durableImages);
+      onImagesUploaded(durableImages);
     } catch (err) {
-      console.error('Failed to process uploaded images', err);
+      console.error('Failed to process and save uploaded images', err);
     } finally {
       setIsProcessingInline(false);
+      setProgressStatus('');
+    }
+  };
+
+  const handleDirectFolderUpload = () => {
+    if (folderInputRef.current) {
+      folderInputRef.current.click();
     }
   };
 
@@ -182,6 +135,28 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
     setSelectedImageIds([]);
   };
 
+  const handleToggleSelectAll = () => {
+    const currentFilteredIds = filteredImages.map((img) => img.id);
+    const allFilteredSelected =
+      currentFilteredIds.length > 0 &&
+      currentFilteredIds.every((id) => selectedImageIds.includes(id));
+
+    if (allFilteredSelected) {
+      // Deselect current filtered
+      setSelectedImageIds((prev) => prev.filter((id) => !currentFilteredIds.includes(id)));
+    } else {
+      // Select all current filtered
+      setSelectedImageIds((prev) => Array.from(new Set([...prev, ...currentFilteredIds])));
+    }
+  };
+
+  const isAllFilteredSelected =
+    filteredImages.length > 0 &&
+    filteredImages.every((img) => selectedImageIds.includes(img.id));
+
+  const isSomeFilteredSelected =
+    filteredImages.some((img) => selectedImageIds.includes(img.id)) && !isAllFilteredSelected;
+
   return (
     <div className="space-y-5">
       {/* Hidden File / Folder Inputs */}
@@ -189,11 +164,13 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
         ref={fileInputRef}
         type="file"
         multiple
-        accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.bmp,.avif"
+        accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.svg,.avif,.bmp,.tiff,.tif,.jfif,.pjp,.pjpeg,.heic,.heif,.hif,.ico,.cur,.apng,.raw,.cr2,.cr3,.nef,.arw,.dng,.orf,.rw2,.pef,.raf,.srw,.dcr,.kdc,.mrw,.psd,.psb,.tga,.hdr,.exr,.*"
         className="hidden"
         onChange={(e) => {
           if (e.target.files && e.target.files.length > 0) {
-            handleFiles(e.target.files);
+            const extracted = extractFilesFromFileList(e.target.files);
+            processAndSaveExtracted(extracted);
+            e.target.value = '';
           }
         }}
       />
@@ -201,10 +178,18 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
         ref={folderInputRef}
         type="file"
         multiple
+        {...({ webkitdirectory: '', directory: '', mozdirectory: '' } as any)}
         className="hidden"
         onChange={(e) => {
-          if (e.target.files && e.target.files.length > 0) {
-            handleFiles(e.target.files);
+          try {
+            if (e.target.files && e.target.files.length > 0) {
+              const extracted = extractFilesFromFileList(e.target.files);
+              processAndSaveExtracted(extracted);
+            }
+          } catch (err) {
+            console.error('Error processing folder files:', err);
+          } finally {
+            e.target.value = '';
           }
         }}
       />
@@ -222,7 +207,7 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
             </span>
           </div>
           <p className="text-xs text-neutral-400 mt-1">
-            Upload whole folders or individual image files from your computer. Stored privately and offline in your browser.
+            Add whole folders or image files in any format (JPG, PNG, WEBP, HEIC, RAW, PSD, SVG). Stored securely and offline in your browser.
           </p>
         </div>
 
@@ -241,11 +226,11 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
           <button
             id="btn-upload-folder-direct"
             type="button"
-            onClick={() => folderInputRef.current?.click()}
+            onClick={handleDirectFolderUpload}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-xs text-indigo-300 hover:text-indigo-200 font-semibold border border-indigo-500/40 backdrop-blur-md transition-all shadow-sm active:scale-95"
           >
             <FolderUp className="w-4 h-4 text-indigo-400" />
-            <span>Upload Folder</span>
+            <span>Add Folder</span>
           </button>
 
           {customImages.length > 0 && (
@@ -263,18 +248,26 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
         </div>
       </div>
 
-      {/* Inline Drag & Drop Zone (always available or prominent when empty) */}
+      {/* Inline Drag & Drop Zone */}
       <div
         onDragOver={(e) => {
           e.preventDefault();
           setIsDragging(true);
         }}
         onDragLeave={() => setIsDragging(false)}
-        onDrop={(e) => {
+        onDrop={async (e) => {
           e.preventDefault();
           setIsDragging(false);
-          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            handleFiles(e.dataTransfer.files);
+          setIsProcessingInline(true);
+          setProgressStatus('Scanning dropped files & folders...');
+          try {
+            const extracted = await extractFilesFromDataTransfer(e.dataTransfer);
+            await processAndSaveExtracted(extracted);
+          } catch (err) {
+            console.error('Error in dropzone:', err);
+          } finally {
+            setIsProcessingInline(false);
+            setProgressStatus('');
           }
         }}
         className={`relative rounded-2xl border-2 border-dashed transition-all p-6 text-center ${
@@ -288,7 +281,9 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
         {isProcessingInline ? (
           <div className="flex flex-col items-center justify-center space-y-2 py-4">
             <div className="w-8 h-8 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-            <p className="text-xs text-emerald-300 font-semibold">Processing & saving reference images...</p>
+            <p className="text-xs text-emerald-300 font-semibold">
+              {progressStatus || 'Processing & saving reference images...'}
+            </p>
           </div>
         ) : customImages.length === 0 ? (
           <div className="flex flex-col items-center justify-center space-y-3 max-w-md mx-auto">
@@ -328,7 +323,7 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
               </div>
               <div>
                 <p className="text-xs font-semibold text-white">Drop more files or folders to add to library</p>
-                <p className="text-[11px] text-neutral-400">Supported formats: JPG, PNG, WEBP, GIF, AVIF</p>
+                <p className="text-[11px] text-neutral-400">Supported formats: JPG, PNG, WEBP, GIF, AVIF, BMP, TIFF</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -402,39 +397,64 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
 
           {/* Search and Selection Toolbar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-            {/* Search Input */}
-            <div className="relative flex-1 max-w-sm">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-              <input
-                type="text"
-                placeholder="Search uploaded references..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              )}
+            {/* Search Input & Select All button */}
+            <div className="flex items-center gap-2.5 flex-1 max-w-lg">
+              <button
+                id="btn-select-all-library"
+                type="button"
+                onClick={handleToggleSelectAll}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-neutral-300 hover:text-white transition-colors shrink-0"
+                title={isAllFilteredSelected ? 'Deselect all references' : 'Select all references'}
+              >
+                {isAllFilteredSelected ? (
+                  <CheckSquare className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400/20" />
+                ) : isSomeFilteredSelected ? (
+                  <div className="w-3.5 h-3.5 rounded border border-emerald-400 bg-emerald-500/30 flex items-center justify-center text-[9px] font-mono leading-none text-emerald-200">
+                    -
+                  </div>
+                ) : (
+                  <Square className="w-3.5 h-3.5 text-neutral-400" />
+                )}
+                <span>
+                  {isAllFilteredSelected
+                    ? 'Deselect All'
+                    : `Select All (${filteredImages.length})`}
+                </span>
+              </button>
+
+              <div className="relative flex-1">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+                <input
+                  type="text"
+                  placeholder="Search uploaded references..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Batch Selection Action Bar */}
             {selectedImageIds.length > 0 ? (
               <div className="flex items-center gap-2 p-1.5 rounded-xl bg-rose-950/40 border border-rose-500/30 text-xs">
                 <span className="text-rose-300 font-semibold px-1.5">
-                  {selectedImageIds.length} selected
+                  {selectedImageIds.length} of {customImages.length} selected
                 </span>
                 <button
                   type="button"
                   onClick={() => setSelectedImageIds([])}
                   className="text-neutral-400 hover:text-white text-[11px] px-1.5 py-0.5"
                 >
-                  Cancel
+                  Clear
                 </button>
                 <button
                   type="button"
@@ -447,16 +467,8 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
               </div>
             ) : (
               <div className="flex items-center gap-2 text-xs text-neutral-400">
-                <button
-                  type="button"
-                  onClick={() => setSelectedImageIds(filteredImages.map((img) => img.id))}
-                  className="hover:text-white transition-colors"
-                >
-                  Select All
-                </button>
-                <span>•</span>
-                <span className="font-mono text-[11px]">
-                  Showing {filteredImages.length} photos
+                <span>
+                  Showing {filteredImages.length} of {customImages.length} references
                 </span>
               </div>
             )}
