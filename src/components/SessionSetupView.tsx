@@ -101,28 +101,51 @@ export const SessionSetupView: React.FC<SessionSetupViewProps> = ({
 
           {/* Quick Launch CTA Card */}
           <div className="w-full md:w-auto flex flex-col sm:flex-row md:flex-col items-stretch gap-3 shrink-0">
-            <button
-              id="btn-start-session-hero"
-              type="button"
-              onClick={onStartSession}
-              className={`px-8 py-4 rounded-2xl font-extrabold text-sm sm:text-base shadow-xl transition-all flex items-center justify-center gap-3 group active:scale-[0.98] ${
-                customImages.length > 0
-                  ? 'bg-white hover:bg-neutral-200 text-black shadow-white/10 hover:shadow-white/20 hover:scale-[1.02]'
-                  : 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/25'
-              }`}
-            >
-              {customImages.length > 0 ? (
-                <>
+            {customImages.length > 0 ? (
+              <>
+                <button
+                  id="btn-start-session-hero"
+                  type="button"
+                  onClick={onStartSession}
+                  className="px-8 py-4 rounded-2xl font-extrabold text-sm sm:text-base shadow-xl transition-all flex items-center justify-center gap-3 group active:scale-[0.98] bg-white hover:bg-neutral-200 text-black shadow-white/10 hover:shadow-white/20 hover:scale-[1.02]"
+                >
                   <Play className="w-5 h-5 fill-current group-hover:translate-x-0.5 transition-transform" />
                   <span>START DRAWING SESSION</span>
-                </>
-              ) : (
-                <>
-                  <FolderUp className="w-5 h-5 stroke-[2.5]" />
-                  <span>UPLOAD REFERENCES TO START</span>
-                </>
-              )}
-            </button>
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    id="btn-quick-upload-folder"
+                    type="button"
+                    onClick={onOpenUploadModal}
+                    className="flex-1 px-3 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                  >
+                    <FolderUp className="w-3.5 h-3.5" />
+                    <span>+ Add Folder / Photos</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col sm:flex-row md:flex-col gap-2.5">
+                <button
+                  id="btn-upload-folder-hero"
+                  type="button"
+                  onClick={onOpenUploadModal}
+                  className="px-6 py-3.5 rounded-2xl font-extrabold text-xs sm:text-sm shadow-xl transition-all flex items-center justify-center gap-2.5 bg-indigo-500 hover:bg-indigo-400 text-white shadow-indigo-500/25 active:scale-[0.98] hover:scale-[1.02]"
+                >
+                  <FolderUp className="w-4 h-4 stroke-[2.5]" />
+                  <span>UPLOAD ENTIRE FOLDER</span>
+                </button>
+                <button
+                  id="btn-upload-photos-hero"
+                  type="button"
+                  onClick={onOpenUploadModal}
+                  className="px-6 py-3 rounded-2xl font-extrabold text-xs sm:text-sm shadow-xl transition-all flex items-center justify-center gap-2.5 bg-white hover:bg-neutral-200 text-black active:scale-[0.98]"
+                >
+                  <Sparkles className="w-4 h-4 text-black" />
+                  <span>Add Photos from Device</span>
+                </button>
+              </div>
+            )}
             <div className="text-center text-[11px] text-neutral-400 flex items-center justify-center gap-2">
               <span>Duration: <b className="text-emerald-400 font-mono">{formatTotalTimeDrawn(estimatedTotalSeconds)}</b></span>
               <span>•</span>

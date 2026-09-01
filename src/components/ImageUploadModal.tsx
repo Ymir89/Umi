@@ -19,7 +19,8 @@ import {
   ExtractedImageFile, 
   extractFilesFromDataTransfer, 
   extractFilesFromFileList, 
-  convertToDurableReferenceImages
+  convertToDurableReferenceImages,
+  SUPPORTED_FORMAT_CATEGORIES
 } from '../utils/fileHelpers';
 
 interface ImageUploadModalProps {
@@ -285,29 +286,44 @@ export const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
           <p className="text-sm font-semibold text-neutral-200 mb-1">
             Drag & drop whole folders or image files from your device
           </p>
-          <p className="text-xs text-neutral-400 mb-3.5 max-w-lg">
-            Supports any image format (JPG, PNG, WEBP, GIF, SVG, AVIF, BMP, TIFF, HEIC, RAW, PSD). Folders and subdirectories are automatically indexed with folder tags.
+          <p className="text-xs text-neutral-400 mb-4 max-w-lg">
+            Choose an entire directory or pick individual reference photos. Folders and nested subfolders are indexed automatically.
           </p>
 
-          <div className="flex flex-wrap items-center justify-center gap-3">
+          {/* Action buttons */}
+          <div className="flex flex-wrap items-center justify-center gap-3 mb-4">
             <button
-              id="btn-select-files"
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-neutral-100 text-xs font-semibold border border-white/15 backdrop-blur-md transition-all flex items-center gap-2 active:scale-95"
-            >
-              <ImageIcon className="w-4 h-4 text-emerald-400" />
-              Select Image Files
-            </button>
-            <button
-              id="btn-select-folder"
+              id="btn-select-folder-primary"
               type="button"
               onClick={handleSelectFolder}
-              className="px-4 py-2.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 text-xs font-semibold border border-indigo-500/40 backdrop-blur-md transition-all flex items-center gap-2 active:scale-95 shadow-md"
+              className="px-5 py-3 rounded-2xl bg-indigo-500 hover:bg-indigo-400 text-white text-xs sm:text-sm font-bold shadow-lg shadow-indigo-500/25 transition-all flex items-center gap-2.5 active:scale-95 border border-indigo-400/30 hover:scale-[1.02]"
             >
-              <FolderUp className="w-4 h-4 text-indigo-400" />
-              Add Folder from Device
+              <FolderUp className="w-4 h-4 stroke-[2.5]" />
+              <span>Upload Entire Folder</span>
             </button>
+            <button
+              id="btn-select-files-primary"
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="px-5 py-3 rounded-2xl bg-white hover:bg-neutral-200 text-black text-xs sm:text-sm font-bold shadow-lg transition-all flex items-center gap-2.5 active:scale-95 hover:scale-[1.02]"
+            >
+              <ImageIcon className="w-4 h-4 text-black" />
+              <span>Add Photos from Device</span>
+            </button>
+          </div>
+
+          {/* Supported Format Pills */}
+          <div className="w-full pt-3 border-t border-white/10 flex flex-col items-center gap-1.5 text-[11px] text-neutral-400">
+            <span className="font-semibold text-neutral-300 uppercase tracking-wider text-[10px]">
+              All Image Formats Supported:
+            </span>
+            <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-xl">
+              {['JPG / JPEG', 'PNG', 'WEBP', 'HEIC / Apple', 'Camera RAW (CR2, NEF, ARW, DNG)', 'PSD / PSB', 'SVG', 'AVIF', 'TIFF / TIF', 'GIF', 'BMP'].map((fmt) => (
+                <span key={fmt} className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[10px] text-neutral-300 font-mono">
+                  {fmt}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
 

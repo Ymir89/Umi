@@ -216,23 +216,23 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
         {/* Upload Action Buttons */}
         <div className="flex items-center gap-2 flex-wrap">
           <button
-            id="btn-upload-files-direct"
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs text-white font-semibold border border-white/15 backdrop-blur-md transition-all shadow-sm active:scale-95"
-          >
-            <ImageIcon className="w-4 h-4 text-emerald-400" />
-            <span>Upload Files</span>
-          </button>
-
-          <button
             id="btn-upload-folder-direct"
             type="button"
             onClick={handleDirectFolderUpload}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-xs text-indigo-300 hover:text-indigo-200 font-semibold border border-indigo-500/40 backdrop-blur-md transition-all shadow-sm active:scale-95"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-xs text-white font-bold border border-indigo-400/40 backdrop-blur-md transition-all shadow-md shadow-indigo-500/20 active:scale-95"
           >
-            <FolderUp className="w-4 h-4 text-indigo-400" />
-            <span>Add Folder</span>
+            <FolderUp className="w-4 h-4 stroke-[2.5]" />
+            <span>Upload Entire Folder</span>
+          </button>
+
+          <button
+            id="btn-upload-files-direct"
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white hover:bg-neutral-200 text-xs text-black font-bold border border-white/20 backdrop-blur-md transition-all shadow-sm active:scale-95"
+          >
+            <ImageIcon className="w-4 h-4 text-black" />
+            <span>Add Photos from Device</span>
           </button>
 
           {customImages.length > 0 && (
@@ -288,60 +288,70 @@ export const ReferenceManager: React.FC<ReferenceManagerProps> = ({
             </p>
           </div>
         ) : customImages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center space-y-3 max-w-md mx-auto">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shadow-inner">
-              <UploadCloud className="w-7 h-7" />
+          <div className="flex flex-col items-center justify-center space-y-3.5 max-w-lg mx-auto">
+            <div className="flex items-center justify-center gap-3">
+              <div className="w-13 h-13 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center shadow-inner">
+                <FolderUp className="w-6 h-6 stroke-[2.5]" />
+              </div>
+              <div className="w-13 h-13 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shadow-inner">
+                <UploadCloud className="w-6 h-6" />
+              </div>
             </div>
             <div className="space-y-1">
-              <h3 className="text-base font-bold text-white">Drag & Drop Poses or Folders Here</h3>
-              <p className="text-xs text-neutral-400 leading-relaxed">
-                Drop reference files or entire folders anywhere in this box, or choose an upload option below.
+              <h3 className="text-lg font-bold text-white">Drag & Drop Folders or Photos Here</h3>
+              <p className="text-xs text-neutral-300 leading-relaxed">
+                Drop folders from your device to automatically index all images and subdirectories, or choose an upload option below.
               </p>
             </div>
-            <div className="flex items-center gap-3 pt-2">
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+              <button
+                type="button"
+                onClick={handleDirectFolderUpload}
+                className="px-5 py-3 rounded-2xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs sm:text-sm shadow-lg shadow-indigo-500/25 transition-all flex items-center gap-2.5 active:scale-95"
+              >
+                <FolderUp className="w-4 h-4 stroke-[2.5]" />
+                Upload Entire Folder
+              </button>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="px-4 py-2.5 rounded-xl bg-white hover:bg-neutral-200 text-black font-bold text-xs shadow-lg transition-all flex items-center gap-2"
+                className="px-5 py-3 rounded-2xl bg-white hover:bg-neutral-200 text-black font-bold text-xs sm:text-sm shadow-lg transition-all flex items-center gap-2.5 active:scale-95"
               >
-                <ImageIcon className="w-4 h-4" />
-                Select Image Files
-              </button>
-              <button
-                type="button"
-                onClick={() => folderInputRef.current?.click()}
-                className="px-4 py-2.5 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs shadow-lg shadow-indigo-500/25 transition-all flex items-center gap-2"
-              >
-                <FolderUp className="w-4 h-4" />
-                Select Folder
+                <ImageIcon className="w-4 h-4 text-black" />
+                Add Photos from Device
               </button>
             </div>
+            <p className="text-[11px] text-neutral-400 font-mono pt-1">
+              All Formats: JPG, PNG, WEBP, HEIC, RAW (CR2/NEF/ARW/DNG), PSD, SVG, AVIF, TIFF, GIF
+            </p>
           </div>
         ) : (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0">
-                <UploadCloud className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                <FolderUp className="w-5 h-5 stroke-[2]" />
               </div>
               <div>
-                <p className="text-xs font-semibold text-white">Drop more files or folders to add to library</p>
-                <p className="text-[11px] text-neutral-400">Supported formats: JPG, PNG, WEBP, GIF, AVIF, BMP, TIFF</p>
+                <p className="text-xs font-semibold text-white">Drop more folders or photos to add to your library</p>
+                <p className="text-[11px] text-neutral-400">All formats supported • Subfolders automatically categorized</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs text-neutral-200 font-medium border border-white/10 transition-colors"
+                onClick={handleDirectFolderUpload}
+                className="px-3.5 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-xs text-indigo-300 font-semibold border border-indigo-500/40 transition-colors flex items-center gap-1.5"
               >
-                + Add Files
+                <FolderUp className="w-3.5 h-3.5" />
+                + Add Folder
               </button>
               <button
                 type="button"
-                onClick={() => folderInputRef.current?.click()}
-                className="px-3 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-xs text-indigo-300 font-medium border border-indigo-500/30 transition-colors"
+                onClick={() => fileInputRef.current?.click()}
+                className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs text-neutral-200 font-semibold border border-white/10 transition-colors flex items-center gap-1.5"
               >
-                + Add Folder
+                <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
+                + Add Photos
               </button>
             </div>
           </div>

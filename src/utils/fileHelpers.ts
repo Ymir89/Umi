@@ -1,10 +1,17 @@
 import { ReferenceImage } from '../types';
 
+export const SUPPORTED_FORMAT_CATEGORIES = [
+  { name: 'Standard Formats', extensions: 'JPG, JPEG, PNG, WEBP, GIF, SVG, AVIF, BMP, ICO' },
+  { name: 'Apple & Modern', extensions: 'HEIC, HEIF, HIF, APNG' },
+  { name: 'Camera RAW Formats', extensions: 'CR2, CR3, NEF, ARW, DNG, ORF, RW2, RAF, PEF' },
+  { name: 'Art & Design Formats', extensions: 'PSD, PSB, TIFF, TIF, TGA, HDR, EXR, DDS, EPS' },
+];
+
 /**
  * Universal supported image extensions for drawing reference photos.
  * Includes all standard raster, vector, modern formats, RAW, Apple HEIC, PSD, etc.
  */
-const IMAGE_EXTENSION_REGEX = /\.(jpe?g|png|webp|gif|svg|avif|bmp|tiff?|tif|jfif|pjp|pjpeg|heic|heif|hif|ico|cur|apng|raw|cr2|cr3|nef|arw|dng|orf|rw2|pef|raf|srw|dcr|kdc|mrw|psd|psb|tga|hdr|exr|pct|pict|dds|xcf|eps|ai)$/i;
+const IMAGE_EXTENSION_REGEX = /\.(jpe?g|png|webp|gif|svg|avif|bmp|tiff?|tif|jfif|pjp|pjpeg|heic|heif|hif|ico|cur|apng|raw|cr2|cr3|nef|arw|dng|orf|rw2|pef|raf|srw|dcr|kdc|mrw|psd|psb|tga|hdr|exr|pct|pict|dds|xcf|eps|ai|jp2|j2k|jpf|jpx|jpm|mj2)$/i;
 
 // Non-image file extensions that must always be skipped
 const NON_IMAGE_EXTENSION_REGEX = /\.(txt|pdf|docx?|xlsx?|pptx?|zip|rar|7z|tar|gz|bz2|iso|mp4|mov|avi|mkv|webm|wmv|m4v|flv|mp3|wav|ogg|flac|m4a|aac|wma|json|js|ts|tsx|jsx|html|htm|css|scss|sass|py|cpp|c|h|hpp|java|class|cs|php|rb|go|rs|swift|kt|exe|dll|dylib|so|dmg|bin|apk|ipa|env|log|md|yml|yaml|xml|csv|tsv|sql|db|sqlite|bak|ini|cfg|conf|sh|bat|cmd)$/i;
